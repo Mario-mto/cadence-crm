@@ -1,0 +1,3216 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence — CRM de relance</title>
+<meta name="description" content="Cadence — le moteur de relance pour indépendants et TPE. Un seul fichier, zéro serveur, vos données ne quittent jamais votre poste.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231c1a16'/%3E%3Cpath d='M9 22V14M15 22V10M21 22V17' stroke='%23fffdf8' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='25.5' cy='9.5' r='2.5' fill='%23c23524'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   CADENCE — CRM de relance · fichier unique, zéro dépendance
+   Système : couleur = signal (rouge retard, ambre dormance,
+   vert gagné) ; l'encre fait le reste. Mono pour les données.
+   ============================================================ */
+
+:root {
+  --paper: #f4f2ec;
+  --surface: #fffdf8;
+  --surface-2: #faf7ef;
+  --ink: #1c1a16;
+  --ink-2: #5d594f;
+  --ink-3: #726d60;
+  --red-ink: #fff;
+  --hairline: #e7e3d7;
+  --hairline-2: #d9d4c5;
+  --accent: #1c1a16;
+  --accent-ink: #fffdf8;
+  --red: #c23524;
+  --red-soft: #f9e9e4;
+  --amber: #8a6100;
+  --amber-dot: #d99f16;
+  --amber-soft: #f6edd3;
+  --green: #1c7a3a;
+  --green-soft: #e6f1e2;
+  --chart-1: #2a78d6;
+  --chart-o1: #86b6ef; --chart-o2: #5598e7; --chart-o3: #2a78d6; --chart-o4: #1c5cab;
+  --shadow-1: 0 1px 2px rgba(28,26,22,.05);
+  --shadow-2: 0 6px 24px rgba(28,26,22,.09);
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, "SF Mono", "Roboto Mono", monospace;
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  --paper: #131210;
+  --surface: #1d1b17;
+  --surface-2: #262319;
+  --ink: #f0ede4;
+  --ink-2: #b3aea1;
+  --ink-3: #918c7e;
+  --red-ink: #131210;
+  --hairline: #2e2b24;
+  --hairline-2: #3b372e;
+  --accent: #f0ede4;
+  --accent-ink: #171512;
+  --red: #e0654e;
+  --red-soft: #3a1f19;
+  --amber: #d9a83c;
+  --amber-dot: #d9a83c;
+  --amber-soft: #33290f;
+  --green: #5cb87a;
+  --green-soft: #1b3122;
+  --chart-1: #3987e5;
+  --chart-o1: #6da7ec; --chart-o2: #3987e5; --chart-o3: #256abf; --chart-o4: #184f95;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-2: 0 8px 28px rgba(0,0,0,.45);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+img, svg { display: block; max-width: 100%; }
+a { color: inherit; }
+::placeholder { color: var(--ink-3); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Structure ---------- */
+#app { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 212px; flex: 0 0 212px;
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--hairline);
+  padding: 18px 12px 14px;
+  background: var(--paper);
+  z-index: 30;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px 16px; }
+.brand svg { flex: 0 0 auto; }
+.brand-name { font-weight: 700; font-size: 16px; letter-spacing: .01em; }
+.brand-sub { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; margin-top: 1px; }
+
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  border: none; background: none; cursor: pointer;
+  color: var(--ink-2); text-align: left; width: 100%;
+  font-weight: 500;
+}
+.nav-item svg { flex: 0 0 auto; opacity: .75; }
+.nav-item:hover { background: var(--surface-2); color: var(--ink); }
+.nav-item.active { background: var(--accent); color: var(--accent-ink); }
+.nav-item.active svg { opacity: 1; }
+.nav-count {
+  margin-left: auto; font-family: var(--mono); font-size: 11px;
+  background: var(--red); color: var(--red-ink); border-radius: 999px;
+  min-width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 6px;
+}
+.nav-item.active .nav-count { background: var(--red); }
+
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 4px; }
+.backup-chip {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  padding: 8px 8px; border: 1px dashed var(--hairline-2); border-radius: 8px;
+  background: none; cursor: pointer; text-align: left; width: 100%;
+}
+.backup-chip:hover { color: var(--ink-2); border-color: var(--ink-3); }
+.backup-chip.warn { color: var(--amber); border-color: var(--amber-dot); }
+.backup-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
+.backup-chip.warn .dot { background: var(--amber-dot); }
+.theme-row { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; }
+.local-note { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); line-height: 1.6; padding: 0 4px; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 25;
+  display: flex; align-items: center; gap: 12px;
+  height: 58px; padding: 0 24px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hairline);
+}
+.view-title { font-size: 16px; font-weight: 700; margin-right: auto; display: flex; align-items: baseline; gap: 10px; }
+.view-title .sub { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--ink-3); }
+
+.searchbtn {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--hairline-2); border-radius: 8px;
+  background: var(--surface); color: var(--ink-3);
+  padding: 7px 12px; min-width: 220px; cursor: pointer;
+}
+.searchbtn:hover { border-color: var(--ink-3); color: var(--ink-2); }
+.searchbtn kbd { margin-left: auto; }
+kbd {
+  font-family: var(--mono); font-size: 10px; color: var(--ink-2);
+  border: 1px solid var(--hairline-2); border-bottom-width: 2px; border-radius: 5px;
+  padding: 1px 5px; background: var(--surface);
+}
+
+/* ---------- Boutons ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--hairline-2); border-radius: 8px;
+  background: var(--surface); color: var(--ink);
+  padding: 7px 14px; cursor: pointer; font-weight: 600; font-size: 13.5px;
+  transition: border-color .12s, background .12s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn-primary:hover { opacity: .88; border-color: var(--accent); }
+.btn-danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, var(--hairline-2)); }
+.btn-danger:hover { border-color: var(--red); background: var(--red-soft); }
+.btn-ghost { border-color: transparent; background: none; color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-sm { padding: 4px 10px; font-size: 12.5px; border-radius: 7px; }
+.btn-xs { padding: 2px 8px; font-size: 11.5px; border-radius: 6px; gap: 5px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px; border: none;
+  background: none; color: var(--ink-2); cursor: pointer;
+}
+.iconbtn:hover { background: var(--surface-2); color: var(--ink); }
+
+/* ---------- Champs ---------- */
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.field label .opt { font-weight: 400; color: var(--ink-3); }
+.input, .select, .textarea {
+  border: 1px solid var(--hairline-2); border-radius: 8px;
+  background: var(--surface); padding: 8px 10px; width: 100%;
+  color: var(--ink);
+}
+.input:focus, .select:focus, .textarea:focus { border-color: var(--ink); }
+.textarea { resize: vertical; min-height: 64px; }
+.field-hint { font-size: 11.5px; color: var(--ink-3); }
+.field-warn { font-size: 12px; color: var(--amber); display: flex; align-items: center; gap: 6px; }
+.field-warn a { text-decoration: underline; cursor: pointer; }
+
+/* ---------- Chips & badges ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em;
+  border: 1px solid var(--hairline-2); border-radius: 999px;
+  padding: 2px 9px; color: var(--ink-2); background: var(--surface);
+  white-space: nowrap;
+}
+.chip.red { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); background: var(--red-soft); }
+.chip.amber { color: var(--amber); border-color: color-mix(in srgb, var(--amber-dot) 55%, transparent); background: var(--amber-soft); }
+.chip.green { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); background: var(--green-soft); }
+.chip.tag { cursor: pointer; }
+.chip.tag:hover { border-color: var(--ink-3); color: var(--ink); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.dot.red { background: var(--red); }
+.dot.amber { background: var(--amber-dot); }
+.dot.green { background: var(--green); }
+
+.money { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); }
+.muted { color: var(--ink-3); }
+.eyebrow {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3); font-weight: 400;
+}
+
+/* ---------- Cartes / sections ---------- */
+.view { padding: 22px 26px 90px; max-width: 1240px; width: 100%; margin: 0 auto; }
+.view.wide { max-width: none; margin: 0; }
+.card {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 12px; box-shadow: var(--shadow-1);
+}
+.card-pad { padding: 16px 18px; }
+.section-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 10px; }
+.section-head:first-child { margin-top: 0; }
+.section-head h2 { font-size: 13px; font-weight: 700; margin: 0; letter-spacing: .01em; }
+.section-head .count { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.section-head .spacer { flex: 1; }
+
+/* ---------- Écran Aujourd'hui ---------- */
+.today-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.today-hero h1 { font-size: 26px; font-weight: 750; margin: 0; letter-spacing: -.01em; }
+.today-hero .date { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-top: 4px; }
+.today-actions { display: flex; gap: 8px; }
+
+.banner {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--amber-dot) 55%, transparent);
+  background: var(--amber-soft); color: var(--amber);
+  border-radius: 10px; padding: 9px 14px; margin-bottom: 16px; font-size: 13px;
+}
+.banner .btn { margin-left: auto; }
+
+.task-list { display: flex; flex-direction: column; }
+.task-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid var(--hairline);
+  background: var(--surface); cursor: pointer;
+}
+.task-row:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+.task-row:last-child { border-bottom: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+.task-row:hover { background: var(--surface-2); }
+.task-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.task-title { font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.task-title .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-sub { font-size: 12px; color: var(--ink-3); display: flex; gap: 8px; align-items: center; min-width: 0; }
+.task-sub .action-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-side { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.task-quick { display: none; gap: 6px; }
+.task-row:hover .task-quick, .task-row:focus-within .task-quick { display: inline-flex; }
+.overdue-days { font-family: var(--mono); font-size: 11px; color: var(--red); }
+
+.empty {
+  padding: 36px 24px; text-align: center; color: var(--ink-3);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.empty .big { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.empty .btn { margin-top: 4px; }
+
+/* Accueil premier lancement */
+.welcome { max-width: 560px; margin: 8vh auto 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.welcome h1 { font-size: 30px; margin: 10px 0 0; letter-spacing: -.01em; }
+.welcome p { color: var(--ink-2); margin: 0; max-width: 44ch; }
+.welcome .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+.welcome .fine { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 14px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<style>
+/* ---------- Pipeline (kanban) ---------- */
+.pipe-band {
+  display: flex; gap: 24px; align-items: center; flex-wrap: wrap;
+  padding: 12px 18px; margin-bottom: 16px;
+}
+.pipe-stat { display: flex; flex-direction: column; gap: 1px; }
+.pipe-stat .v { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.pipe-stat .v.red { color: var(--red); }
+.pipe-stat .l { font-size: 11px; color: var(--ink-3); }
+.pipe-band .sep { width: 1px; align-self: stretch; background: var(--hairline); }
+
+.board {
+  display: flex; gap: 12px; align-items: flex-start;
+  overflow-x: auto; padding: 2px 26px 30px;
+  scrollbar-width: thin;
+}
+.col {
+  flex: 0 0 268px; width: 268px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  border: 1px solid var(--hairline); border-radius: 12px;
+  display: flex; flex-direction: column; max-height: calc(100vh - 210px);
+}
+.col.closed { background: none; border-style: dashed; }
+.col-head { padding: 10px 12px 8px; display: flex; align-items: baseline; gap: 7px; }
+.col-head .name { font-weight: 700; font-size: 12.5px; }
+.col-head .n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.col-head .prob { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.col-totals { padding: 0 12px 8px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); display: flex; gap: 10px; }
+.col-body { padding: 4px 8px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 40px; scrollbar-width: thin; }
+.col-body.dragover { background: color-mix(in srgb, var(--ink) 5%, transparent); border-radius: 8px; }
+
+.deal-card {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-left: 3px solid transparent;
+  border-radius: 10px; padding: 9px 11px 8px;
+  cursor: grab; box-shadow: var(--shadow-1);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.deal-card:hover { border-color: var(--hairline-2); box-shadow: var(--shadow-2); }
+.deal-card.state-late { border-left-color: var(--red) !important; }
+.deal-card.state-sleep { border-left-color: var(--amber-dot) !important; }
+.deal-card.dragging { opacity: .45; cursor: grabbing; }
+.deal-top { display: flex; align-items: baseline; gap: 8px; }
+.deal-title { font-weight: 650; font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-amount { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.deal-who { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-foot { display: flex; align-items: center; gap: 6px; min-height: 20px; }
+.deal-foot .spacer { flex: 1; }
+.next-chip { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); }
+.next-chip.late { color: var(--red); font-weight: 600; }
+.next-chip.none { color: var(--amber); }
+.sleep-tag { font-family: var(--mono); font-size: 10px; color: var(--amber); }
+
+/* micro-prompt après un drop */
+.drop-prompt {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--accent); color: var(--accent-ink);
+  border-radius: 10px; padding: 8px 12px; font-size: 12.5px;
+  box-shadow: var(--shadow-2);
+}
+.drop-prompt input {
+  background: transparent; border: none; color: inherit; width: 130px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-ink) 40%, transparent);
+  font-family: var(--mono); font-size: 12px; padding: 1px 2px;
+}
+.drop-prompt kbd { border-color: color-mix(in srgb, var(--accent-ink) 45%, transparent); color: var(--accent-ink); background: none; }
+
+/* ---------- Contacts (table) ---------- */
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.toolbar .input { width: 240px; }
+.toolbar .spacer { flex: 1; }
+.tag-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag-filter .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-1); }
+table.data { border-collapse: collapse; width: 100%; min-width: 760px; }
+table.data th {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 500; text-align: left;
+  padding: 10px 12px; border-bottom: 1px solid var(--hairline);
+  position: sticky; top: 0; background: var(--surface); z-index: 2;
+}
+table.data td { padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+table.data tbody tr { cursor: pointer; }
+table.data tbody tr:hover { background: var(--surface-2); }
+table.data tbody tr:last-child td { border-bottom: none; }
+table.data td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+table.data .cell-edit { cursor: text; border-radius: 6px; padding: 2px 6px; margin: -2px -6px; min-height: 20px; }
+table.data .cell-edit:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+table.data .cell-edit input { border: none; background: var(--surface); width: 100%; padding: 2px 6px; margin: -2px -6px; border-radius: 6px; outline: 2px solid var(--ink); font-size: inherit; }
+.rowcheck { width: 30px; }
+.rowcheck input { accent-color: var(--ink); cursor: pointer; }
+
+.bulkbar {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  background: var(--accent); color: var(--accent-ink);
+  border-radius: 12px; padding: 9px 16px; z-index: 60; box-shadow: var(--shadow-2);
+}
+.bulkbar .btn { background: none; border-color: color-mix(in srgb, var(--accent-ink) 35%, transparent); color: var(--accent-ink); }
+.bulkbar .btn:hover { border-color: var(--accent-ink); }
+.bulkbar .n { font-family: var(--mono); font-size: 12px; }
+
+/* ---------- Drawer (fiche) ---------- */
+.drawer-veil { position: fixed; inset: 0; background: rgba(15,13,10,.35); z-index: 70; opacity: 0; transition: opacity .16s; }
+.drawer-veil.open { opacity: 1; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw);
+  background: var(--surface); border-left: 1px solid var(--hairline);
+  z-index: 71; display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .18s ease-out;
+  box-shadow: var(--shadow-2);
+}
+.drawer.open { transform: translateX(0); }
+.drawer-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 20px 12px; border-bottom: 1px solid var(--hairline); }
+.drawer-head h2 { font-size: 17px; margin: 0; flex: 1; min-width: 0; }
+.drawer-head .sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 16px 20px 40px; scrollbar-width: thin; }
+.drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.drawer-grid .full { grid-column: 1 / -1; }
+.kv { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kv .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.kv .v { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; }
+.kv .v a { text-decoration: none; border-bottom: 1px solid var(--hairline-2); }
+.kv .v a:hover { border-color: var(--ink); }
+
+details.fold { border-top: 1px solid var(--hairline); margin-top: 14px; padding-top: 10px; }
+details.fold summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--ink-2); list-style: none; display: flex; align-items: center; gap: 6px; }
+details.fold summary::-webkit-details-marker { display: none; }
+details.fold summary::before { content: "▸"; font-size: 10px; transition: transform .12s; }
+details.fold[open] summary::before { transform: rotate(90deg); }
+details.fold .fold-body { padding: 10px 0 4px; }
+
+/* timeline */
+.tl { display: flex; flex-direction: column; margin-top: 6px; }
+.tl-item { display: flex; gap: 12px; padding: 7px 0; }
+.tl-rail { display: flex; flex-direction: column; align-items: center; width: 14px; flex: 0 0 14px; }
+.tl-rail .p { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-3); background: var(--surface); margin-top: 4px; }
+.tl-item.type-etape .tl-rail .p { background: var(--ink-3); }
+.tl-rail .l { flex: 1; width: 1px; background: var(--hairline); margin-top: 3px; }
+.tl-item:last-child .tl-rail .l { display: none; }
+.tl-body { flex: 1; min-width: 0; }
+.tl-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); display: flex; gap: 8px; }
+.tl-text { font-size: 13px; margin-top: 1px; white-space: pre-wrap; overflow-wrap: break-word; }
+.tl-add { display: flex; gap: 8px; margin: 10px 0 4px; }
+.tl-add input { flex: 1; }
+.tl-typesel { display: flex; gap: 4px; }
+.tl-typesel button {
+  border: 1px solid var(--hairline-2); background: var(--surface); border-radius: 7px;
+  font-family: var(--mono); font-size: 10.5px; padding: 4px 8px; cursor: pointer; color: var(--ink-3);
+}
+.tl-typesel button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ---------- Modales ---------- */
+dialog.modal {
+  border: 1px solid var(--hairline); border-radius: 14px;
+  background: var(--surface); color: var(--ink);
+  padding: 0; width: min(520px, calc(100vw - 32px));
+  box-shadow: var(--shadow-2);
+}
+dialog.modal::backdrop { background: rgba(15,13,10,.4); }
+.modal-head { display: flex; align-items: center; padding: 16px 20px 0; }
+.modal-head h2 { font-size: 15px; margin: 0; flex: 1; }
+.modal-body { padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 4px 20px 18px; align-items: center; }
+.modal-foot .left { margin-right: auto; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-row .full { grid-column: 1 / -1; }
+.choice-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.choice-chips button {
+  border: 1px solid var(--hairline-2); background: var(--surface); border-radius: 999px;
+  padding: 5px 13px; cursor: pointer; font-size: 12.5px;
+}
+.choice-chips button:hover, .choice-chips button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ---------- Palette Ctrl+K ---------- */
+.palette-veil { position: fixed; inset: 0; background: rgba(15,13,10,.35); z-index: 80; }
+.palette {
+  position: fixed; top: 12vh; left: 50%; transform: translateX(-50%);
+  width: min(600px, calc(100vw - 28px)); z-index: 81;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 14px; box-shadow: var(--shadow-2); overflow: hidden;
+}
+.palette input {
+  width: 100%; border: none; background: none; padding: 15px 18px; font-size: 15px;
+  border-bottom: 1px solid var(--hairline);
+}
+.palette-list { max-height: 46vh; overflow-y: auto; padding: 6px; scrollbar-width: thin; }
+.pal-group { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 8px 12px 3px; }
+.pal-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.pal-item.sel { background: var(--accent); color: var(--accent-ink); }
+.pal-item.sel .muted, .pal-item.sel .money { color: color-mix(in srgb, var(--accent-ink) 70%, transparent); }
+.pal-item .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-item .money { font-size: 11.5px; }
+.pal-empty { padding: 22px; text-align: center; color: var(--ink-3); font-size: 13px; }
+.pal-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--hairline); font-size: 11px; color: var(--ink-3); }
+
+/* ---------- Stats ---------- */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-tile { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+.stat-tile .l { font-size: 12px; color: var(--ink-2); }
+.stat-tile .v { font-size: 24px; font-weight: 720; letter-spacing: -.015em; }
+.stat-tile .v.small { font-size: 15px; font-weight: 600; color: var(--ink-3); }
+.stat-tile .d { font-size: 11.5px; color: var(--ink-3); }
+.stat-tile .d .up { color: var(--green); }
+.stat-tile .d .down { color: var(--red); }
+.stat-tile.click { cursor: pointer; }
+.stat-tile.click:hover { border-color: var(--hairline-2); box-shadow: var(--shadow-2); }
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.chart-card { padding: 16px 18px 12px; min-width: 0; }
+.chart-card h3 { font-size: 13px; margin: 0 0 2px; }
+.chart-card .sub { font-size: 11.5px; color: var(--ink-3); margin-bottom: 12px; }
+.chart-card svg { width: 100%; height: auto; }
+.chart-card svg text { font-family: var(--sans); }
+.chart-empty { padding: 26px 10px; text-align: center; color: var(--ink-3); font-size: 12.5px; line-height: 1.6; }
+details.chart-table { margin-top: 8px; border-top: 1px solid var(--hairline); padding-top: 6px; }
+details.chart-table summary { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); cursor: pointer; }
+details.chart-table table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; }
+details.chart-table td, details.chart-table th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--hairline); }
+details.chart-table td:last-child, details.chart-table th:last-child { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.viz-tip {
+  position: fixed; z-index: 90; pointer-events: none;
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 12px; border-radius: 8px; padding: 5px 10px;
+  box-shadow: var(--shadow-2); display: none; white-space: nowrap;
+}
+
+/* ---------- Réglages ---------- */
+.settings-grid { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.setting-card h3 { font-size: 14px; margin: 0 0 3px; }
+.setting-card .desc { font-size: 12.5px; color: var(--ink-3); margin: 0 0 12px; max-width: 62ch; }
+.setting-card .desc b { color: var(--ink-2); }
+.stage-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+.stage-row:last-child { border-bottom: none; }
+.stage-row .input { width: auto; flex: 1; }
+.stage-row .input.pct, .stage-row .input.days { width: 74px; flex: 0 0 74px; font-family: var(--mono); text-align: right; }
+.stage-head-row { display: flex; gap: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding-bottom: 4px; }
+.stage-head-row .grow { flex: 1; }
+.stage-head-row .w74 { width: 74px; flex: 0 0 74px; text-align: right; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tpl-vars { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+
+/* ---------- Toasts ---------- */
+.toasts { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+.toast {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--accent); color: var(--accent-ink);
+  border-radius: 10px; padding: 10px 14px; font-size: 13px;
+  box-shadow: var(--shadow-2); max-width: 360px;
+  animation: toast-in .18s ease-out;
+}
+.toast button { background: none; border: none; color: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0; }
+@keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- Import CSV ---------- */
+dialog.modal.lg { width: min(760px, calc(100vw - 32px)); }
+.csv-preview { overflow: auto; max-height: 300px; border: 1px solid var(--hairline); border-radius: 10px; }
+.csv-preview table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.csv-preview th { font-family: var(--mono); font-size: 10px; padding: 6px 10px; border-bottom: 1px solid var(--hairline-2); position: sticky; top: 0; background: var(--surface-2); text-align: left; white-space: nowrap; z-index: 2; }
+.csv-preview th select { font-size: 11px; margin-top: 3px; display: block; max-width: 140px; }
+.csv-preview td { padding: 4px 10px; border-bottom: 1px solid var(--hairline); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.csv-stats { font-size: 12px; color: var(--ink-2); display: flex; gap: 14px; flex-wrap: wrap; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .sidebar { position: fixed; bottom: 0; top: auto; left: 0; right: 0; width: auto; height: auto; flex-direction: row; align-items: center; padding: 6px 8px; border-right: none; border-top: 1px solid var(--hairline); background: var(--surface); }
+  .brand, .sidebar-foot { display: none; }
+  .nav { flex-direction: row; width: 100%; justify-content: space-around; }
+  .nav-item { flex-direction: column; gap: 2px; font-size: 10px; padding: 6px 4px; position: relative; }
+  .nav-count { position: absolute; top: 0; right: 8%; margin: 0; min-width: 16px; height: 16px; font-size: 9.5px; }
+  #app { flex-direction: column; }
+  .main { padding-bottom: 64px; }
+  .view { padding: 16px 14px 90px; }
+  .board { padding: 2px 14px 30px; }
+  .topbar { padding: 0 14px; }
+  .searchbtn { min-width: 0; }
+  .searchbtn .stxt, .searchbtn kbd { display: none; }
+  .chart-grid, .drawer-grid, .form-row { grid-template-columns: 1fr; }
+  .today-hero h1 { font-size: 21px; }
+  .col { flex-basis: 240px; width: 240px; }
+  .bulkbar { bottom: 76px; width: max-content; max-width: calc(100vw - 20px); flex-wrap: wrap; }
+  .toasts { bottom: 76px; right: 12px; }
+}
+</style>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M9 22V14M15 22V10M21 22V17" stroke="var(--accent-ink)" stroke-width="3" stroke-linecap="round"/><circle cx="25.5" cy="9.5" r="2.5" fill="var(--red)"/></svg>
+      <div>
+        <div class="brand-name">Cadence</div>
+        <div class="brand-sub">CRM de relance</div>
+      </div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Navigation principale"></nav>
+    <div class="sidebar-foot">
+      <button class="backup-chip" id="backupChip" title="Exporter une sauvegarde">
+        <span class="dot"></span><span id="backupTxt">Sauvegarde : jamais</span>
+      </button>
+      <div class="theme-row">
+        <span class="local-note">100&nbsp;% local · 0&nbsp;serveur</span>
+        <button class="iconbtn" id="themeBtn" title="Basculer clair / sombre" aria-label="Basculer le thème">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="view-title" id="viewTitle">Aujourd&rsquo;hui</div>
+      <button class="searchbtn" id="searchBtn" aria-label="Rechercher (Ctrl+K)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span class="stxt">Rechercher ou agir&hellip;</span>
+        <kbd>Ctrl K</kbd>
+      </button>
+      <button class="btn btn-primary" id="quickAddBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Affaire
+      </button>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="viz-tip" id="vizTip" role="presentation"></div>
+<div id="overlayRoot"></div>
+<dialog class="modal" id="modalRoot"></dialog>
+
+<script>
+'use strict';
+
+/* ============================================================
+   1. UTILITAIRES
+   ============================================================ */
+const $  = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const uid = () => Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const pad2 = n => String(n).padStart(2, '0');
+function isoDate(d = new Date()) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function parseISO(iso) { const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); }
+function addDays(iso, n) { const d = parseISO(iso); d.setDate(d.getDate() + n); return isoDate(d); }
+function today() { return isoDate(); }
+function daysFromToday(iso) { return Math.round((parseISO(iso) - parseISO(today())) / 864e5); }
+function daysSince(ts) { if (!ts) return Infinity; const d = new Date(ts); if (isNaN(d)) return Infinity; return Math.max(0, Math.round((parseISO(today()) - parseISO(isoDate(d))) / 864e5)); }
+function nextMonday() { const d = new Date(); const delta = ((8 - d.getDay()) % 7) || 7; d.setDate(d.getDate() + delta); return isoDate(d); }
+function monthKey(ts) { const d = new Date(ts); return isNaN(d) ? '' : d.getFullYear() + '-' + pad2(d.getMonth() + 1); }
+
+const nfEUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const fmtEUR = n => nfEUR.format(Math.round(n || 0));
+const dfShort = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+const dfLong  = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const dfFull  = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+const dfTime  = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const dfMonth = new Intl.DateTimeFormat('fr-FR', { month: 'short' });
+const fmtDay = iso => dfShort.format(parseISO(iso));
+const fmtFull = ts => dfFull.format(new Date(ts));
+function relDay(iso) {
+  const d = daysFromToday(iso);
+  if (d === 0) return "aujourd'hui";
+  if (d === 1) return 'demain';
+  if (d === -1) return 'hier';
+  if (d < 0) return 'il y a ' + (-d) + ' j';
+  if (d <= 14) return 'dans ' + d + ' j';
+  return fmtDay(iso);
+}
+function relPast(ts) {
+  if (!ts) return 'jamais';
+  const d = daysSince(ts);
+  if (d === 0) return "aujourd'hui";
+  if (d === 1) return 'hier';
+  if (d < 30) return 'il y a ' + d + ' j';
+  if (d < 365) return 'il y a ' + Math.round(d / 30) + ' mois';
+  return 'il y a ' + (d / 365).toFixed(1).replace('.', ',') + ' an(s)';
+}
+function fmtPhone(p) {
+  const digits = String(p || '').replace(/[^\d+]/g, '');
+  let d = digits;
+  if (d.startsWith('+33')) d = '0' + d.slice(3);
+  if (/^0\d{9}$/.test(d)) return d.match(/\d{2}/g).join(' ');
+  return String(p || '').trim();
+}
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+function download(filename, content, mime) {
+  const blob = new Blob([content], { type: mime || 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ============================================================
+   2. STORE — localStorage, schéma versionné, multi-onglets
+   ============================================================ */
+const SCHEMA_VERSION = 1;
+const LS_KEY = 'cadence.crm';
+
+const LOSS_REASONS = ['Pas de décision', 'Prix', 'Concurrent', 'Pas de budget', 'Sans réponse', 'Autre'];
+const ACTION_KINDS = { relance: 'Relance', appel: 'Appel', email: 'Email', rdv: 'RDV', autre: 'Autre' };
+const ACT_TYPES = { note: 'Note', appel: 'Appel', email: 'Email', rdv: 'RDV', etape: 'Étape', systeme: '—' };
+
+function defaultStages() {
+  return [
+    { id: 'piste',   name: 'Piste',          prob: 10, rot: 21 },
+    { id: 'contact', name: 'Contact établi', prob: 25, rot: 14 },
+    { id: 'devis',   name: 'Devis envoyé',   prob: 50, rot: 10 },
+    { id: 'nego',    name: 'Négociation',    prob: 75, rot: 7 },
+  ];
+}
+function defaultTemplates() {
+  return [
+    {
+      id: 'tpl-devis', name: 'Relance devis',
+      subject: 'Votre devis {societe} — on en parle ?',
+      body: 'Bonjour {prenom},\n\nJe me permets de revenir vers vous au sujet du devis de {montant} que je vous ai transmis.\nAvez-vous eu le temps d’y jeter un œil ? Je reste disponible pour en discuter ou l’ajuster.\n\nBien cordialement,'
+    },
+    {
+      id: 'tpl-suivi', name: 'Reprise de contact',
+      subject: 'Des nouvelles de {societe}',
+      body: 'Bonjour {prenom},\n\nNous avions échangé il y a quelque temps au sujet de votre projet.\nOù en êtes-vous ? Si le sujet est toujours d’actualité, je serais ravi d’en reparler.\n\nBien cordialement,'
+    },
+  ];
+}
+function emptyState() {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    contacts: [],
+    deals: [],
+    activities: [],
+    settings: {
+      stages: defaultStages(),
+      theme: 'auto',
+      lossReasons: LOSS_REASONS.slice(),
+      emailTemplates: defaultTemplates(),
+      quoteCadence: [3, 7, 14],
+    },
+    meta: { createdAt: new Date().toISOString(), lastBackupAt: null, demo: false, onboarded: false },
+  };
+}
+
+let S = emptyState();
+
+function validateState(raw) {
+  if (!raw || typeof raw !== 'object') throw new Error('Fichier illisible');
+  if (!Array.isArray(raw.contacts) || !Array.isArray(raw.deals) || !Array.isArray(raw.activities)) throw new Error('Structure invalide : contacts / deals / activities manquants');
+  if ((raw.schemaVersion || 0) > SCHEMA_VERSION) throw new Error('Cette sauvegarde vient d’une version plus récente de Cadence');
+  return true;
+}
+const safeId = x => { const t = String(x ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40); return t || uid(); };
+const safeTs = (x, fallback) => { const d = new Date(x); return isNaN(d) ? (fallback || new Date().toISOString()) : d.toISOString(); };
+const safeDate = x => /^\d{4}-\d{2}-\d{2}$/.test(String(x)) ? String(x) : null;
+const safeStr = (x, max) => String(x ?? '').slice(0, max);
+const safeNum = (x, lo, hi, dflt) => { const n = Number(x); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt; };
+
+function migrate(raw) {
+  // Toute donnée chargée ou importée est assainie champ par champ : un JSON
+  // malformé (ou malveillant) ne doit ni casser le rendu ni injecter du HTML.
+  const base = emptyState();
+  raw.settings = Object.assign(base.settings, raw.settings || {});
+  raw.meta = Object.assign(base.meta, raw.meta || {});
+  if (!Array.isArray(raw.settings.stages) || !raw.settings.stages.length) raw.settings.stages = defaultStages();
+  raw.settings.stages = raw.settings.stages.map(st => ({
+    id: safeId(st && st.id), name: safeStr((st && st.name) || 'Étape', 60),
+    prob: safeNum(st && st.prob, 0, 100, 50), rot: safeNum(st && st.rot, 0, 365, 0),
+  }));
+  const stageIds = new Set(raw.settings.stages.map(st => st.id));
+  const firstStage = raw.settings.stages[0].id;
+  if (!Array.isArray(raw.settings.quoteCadence)) raw.settings.quoteCadence = [3, 7, 14];
+  if (!Array.isArray(raw.settings.emailTemplates)) raw.settings.emailTemplates = defaultTemplates();
+  if (!Array.isArray(raw.settings.lossReasons)) raw.settings.lossReasons = LOSS_REASONS.slice();
+
+  raw.contacts = (raw.contacts || []).filter(c => c && typeof c === 'object').map(c => ({
+    id: safeId(c.id), name: safeStr(c.name || 'Sans nom', 120), company: safeStr(c.company, 120),
+    email: safeStr(c.email, 160), phone: safeStr(c.phone, 40),
+    tags: Array.isArray(c.tags) ? c.tags.map(t => safeStr(t, 40)).filter(Boolean).slice(0, 20) : [],
+    note: safeStr(c.note, 4000), siret: safeStr(c.siret, 20), tva: safeStr(c.tva, 20),
+    createdAt: safeTs(c.createdAt),
+  }));
+  const contactIds = new Set(raw.contacts.map(c => c.id));
+
+  raw.deals = (raw.deals || []).filter(d => d && typeof d === 'object').map(d => {
+    const createdAt = safeTs(d.createdAt);
+    const stageId = stageIds.has(String(d.stageId)) ? String(d.stageId) : firstStage;
+    const status = ['open', 'won', 'lost'].includes(d.status) ? d.status : 'open';
+    const hist = (Array.isArray(d.stageHistory) ? d.stageHistory : [])
+      .filter(h => h && stageIds.has(String(h.stageId)))
+      .map(h => ({ stageId: String(h.stageId), at: safeTs(h.at, createdAt) }));
+    return {
+      id: safeId(d.id), contactId: safeId(d.contactId), title: safeStr(d.title || 'Affaire', 160),
+      value: safeNum(d.value, 0, 1e9, 0), stageId,
+      prob: d.prob == null || d.prob === '' ? null : safeNum(d.prob, 0, 100, null),
+      status, lostReason: d.lostReason == null ? null : safeStr(d.lostReason, 60),
+      createdAt, closedAt: status === 'open' ? null : safeTs(d.closedAt, createdAt),
+      lastActivityAt: safeTs(d.lastActivityAt, createdAt),
+      stageHistory: hist.length ? hist : [{ stageId, at: createdAt }],
+      next: d.next && typeof d.next === 'object' && safeDate(d.next.date)
+        ? { kind: (d.next.kind in ACTION_KINDS) ? d.next.kind : 'relance', label: safeStr(d.next.label, 120), date: safeDate(d.next.date) }
+        : null,
+    };
+  }).filter(d => contactIds.has(d.contactId));
+  const dealIds = new Set(raw.deals.map(d => d.id));
+
+  raw.activities = (raw.activities || []).filter(a => a && typeof a === 'object').map(a => ({
+    id: safeId(a.id),
+    dealId: a.dealId == null || !dealIds.has(safeId(a.dealId)) ? null : safeId(a.dealId),
+    contactId: a.contactId == null ? null : safeId(a.contactId),
+    type: (a.type in ACT_TYPES) ? a.type : 'note',
+    text: safeStr(a.text, 4000), at: safeTs(a.at),
+  })).filter(a => (a.contactId && contactIds.has(a.contactId)) || a.dealId);
+
+  raw.schemaVersion = SCHEMA_VERSION;
+  return raw;
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return emptyState();
+    const parsed = JSON.parse(raw);
+    validateState(parsed);
+    return migrate(parsed);
+  } catch (e) {
+    console.warn('Cadence : état illisible, démarrage à vide.', e);
+    return emptyState();
+  }
+}
+function persist() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+  catch (e) { toast('Impossible d’enregistrer (stockage plein ?). Exportez une sauvegarde.', null, 8000); }
+}
+function commit() { persist(); render(); }
+
+window.addEventListener('storage', e => {
+  if (e.key !== LS_KEY) return;
+  S = loadState();
+  closeDrawer(true); closeModal(); closePalette();
+  render();
+  toast('Données mises à jour depuis un autre onglet');
+});
+
+/* ---------- accès ---------- */
+const contactById = id => S.contacts.find(c => c.id === id);
+const dealById = id => S.deals.find(d => d.id === id);
+const stageById = id => S.settings.stages.find(s => s.id === id);
+const stageIndex = id => S.settings.stages.findIndex(s => s.id === id);
+const openDeals = () => S.deals.filter(d => d.status === 'open');
+const dealsOfContact = cid => S.deals.filter(d => d.contactId === cid);
+const actsOfDeal = did => S.activities.filter(a => a.dealId === did).sort((a, b) => b.at.localeCompare(a.at));
+const actsOfContact = cid => S.activities.filter(a => a.contactId === cid).sort((a, b) => b.at.localeCompare(a.at));
+
+function addActivity(o) {
+  const a = Object.assign({ id: uid(), at: new Date().toISOString(), type: 'note', text: '', dealId: null, contactId: null }, o);
+  S.activities.push(a);
+  if (a.dealId && a.type !== 'systeme') {
+    const d = dealById(a.dealId);
+    if (d) d.lastActivityAt = a.at;
+  }
+  return a;
+}
+
+/* ============================================================
+   3. MÉTIER — pondération, alertes, relances, stats
+   ============================================================ */
+function dealProb(d) {
+  if (d.status === 'won') return 100;
+  if (d.status === 'lost') return 0;
+  if (d.prob != null && d.prob !== '') return Number(d.prob);
+  const st = stageById(d.stageId);
+  return st ? st.prob : 100;
+}
+const dealWeighted = d => (Number(d.value) || 0) * dealProb(d) / 100;
+
+/* Nombre de contacts pris sur l'affaire (appels, emails, rdv) — le compteur de relance */
+function touchCount(d) {
+  return S.activities.filter(a => a.dealId === d.id && ['appel', 'email', 'rdv'].includes(a.type)).length;
+}
+
+/* Hiérarchie d'alerte unifiée : late (rouge) > sleep (ambre) > noaction (ambre pâle) > ok.
+   Une action planifiée à 7 jours ou moins suspend la dormance (amélioration vs Pipedrive). */
+function dealAlert(d) {
+  if (d.status !== 'open') return 'ok';
+  if (d.next && d.next.date && daysFromToday(d.next.date) < 0) return 'late';
+  const st = stageById(d.stageId);
+  const rot = st && st.rot ? Number(st.rot) : 0;
+  const idle = daysSince(d.lastActivityAt || d.createdAt);
+  const soon = d.next && d.next.date && daysFromToday(d.next.date) >= 0 && daysFromToday(d.next.date) <= 7;
+  if (rot && idle > rot && !soon) return 'sleep';
+  if (!d.next || !d.next.date) return 'noaction';
+  return 'ok';
+}
+const lateDeals  = () => openDeals().filter(d => dealAlert(d) === 'late');
+const sleepDeals = () => openDeals().filter(d => dealAlert(d) === 'sleep');
+const noActionDeals = () => openDeals().filter(d => dealAlert(d) === 'noaction');
+const dueToday  = () => openDeals().filter(d => d.next && d.next.date && daysFromToday(d.next.date) === 0);
+const dueTomorrow = () => openDeals().filter(d => d.next && d.next.date && daysFromToday(d.next.date) === 1);
+
+function pipelineTotals() {
+  const open = openDeals();
+  const brut = open.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  const pond = open.reduce((s, d) => s + dealWeighted(d), 0);
+  const wonMonth = S.deals
+    .filter(d => d.status === 'won' && d.closedAt && monthKey(d.closedAt) === monthKey(new Date()))
+    .reduce((s, d) => s + (Number(d.value) || 0), 0);
+  return { brut, pond, wonMonth, late: lateDeals().length };
+}
+
+/* Prochaine échéance par défaut : cadence devis J+3/J+7/J+14, sinon +3 j. */
+function suggestedDelay(d) {
+  const st = stageById(d.stageId);
+  const cad = S.settings.quoteCadence || [3, 7, 14];
+  if (st && st.id === 'devis') {
+    const n = touchCount(d);
+    return cad[Math.min(n, cad.length - 1)];
+  }
+  return 3;
+}
+
+/* ---------- statistiques (avec seuils pédagogiques) ---------- */
+function statsData() {
+  const closed = S.deals.filter(d => d.status !== 'open');
+  const won = S.deals.filter(d => d.status === 'won');
+  const lost = S.deals.filter(d => d.status === 'lost');
+  const winRate = closed.length >= 5 ? Math.round(100 * won.length / closed.length) : null;
+  const avgBasket = won.length >= 3 ? won.reduce((s, d) => s + (Number(d.value) || 0), 0) / won.length : null;
+  const cycles = won.filter(d => d.closedAt && d.createdAt)
+    .map(d => Math.max(1, Math.round((new Date(d.closedAt) - new Date(d.createdAt)) / 864e5)));
+  const avgCycle = cycles.length >= 3 ? Math.round(cycles.reduce((a, b) => a + b, 0) / cycles.length) : null;
+
+  // Entonnoir : part des affaires ayant atteint chaque étape.
+  // Une affaire gagnée a, par définition, traversé tout le pipeline.
+  const all = S.deals.length;
+  const maxIdxOf = d => d.status === 'won'
+    ? S.settings.stages.length - 1
+    : Math.max(0, ...d.stageHistory.map(h => stageIndex(h.stageId)).filter(i => i >= 0), stageIndex(d.stageId));
+  const funnel = S.settings.stages.map((st, k) => ({
+    stage: st,
+    n: S.deals.filter(d => maxIdxOf(d) >= k).length,
+  }));
+  funnel.push({ stage: { id: '__won', name: 'Gagné' }, n: won.length });
+
+  // CA gagné par mois (6 derniers mois)
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+    const key = d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+    months.push({
+      key, label: dfMonth.format(d).replace('.', ''),
+      total: won.filter(w => w.closedAt && monthKey(w.closedAt) === key).reduce((s, w) => s + (Number(w.value) || 0), 0),
+    });
+  }
+  // Raisons de perte
+  const reasons = {};
+  lost.forEach(d => { const r = d.lostReason || 'Non précisé'; reasons[r] = (reasons[r] || 0) + 1; });
+  const lossList = Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+
+  const prevKey = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.getFullYear() + '-' + pad2(d.getMonth() + 1); })();
+  const wonPrevMonth = won.filter(d => d.closedAt && monthKey(d.closedAt) === prevKey).reduce((s, d) => s + (Number(d.value) || 0), 0);
+
+  return { closed, won, lost, winRate, avgBasket, avgCycle, funnel, months, lossList, all, wonPrevMonth };
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   4. ROUTEUR & NAVIGATION
+   ============================================================ */
+const ROUTES = {
+  aujourdhui: { title: "Aujourd'hui", icon: 'sun' },
+  pipeline:   { title: 'Pipeline', icon: 'cols' },
+  contacts:   { title: 'Contacts', icon: 'people' },
+  stats:      { title: 'Statistiques', icon: 'chart' },
+  reglages:   { title: 'Réglages', icon: 'gear' },
+};
+const ICONS = {
+  sun: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h13M4 12h9M4 18h6"/><path d="m15 16 2.5 2.5L22 14"/></svg>',
+  cols: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="5" height="13" rx="1.2"/><rect x="10" y="4" width="5" height="9" rx="1.2"/><rect x="17" y="4" width="5" height="16" rx="1.2"/></svg>',
+  people: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16.5 14.5c2.6.2 4.4 1.7 5 4.5"/></svg>',
+  chart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V9M10 20V4M16 20v-7M21 20H3"/></svg>',
+  gear: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.5-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-1-2 3.5 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.3 1 2-3.5-2-1.5c.06-.4.1-.8.1-1.2Z"/></svg>',
+};
+
+function currentRoute() {
+  const h = location.hash.replace(/^#\/?/, '');
+  return ROUTES[h] ? h : 'aujourdhui';
+}
+function go(route) { location.hash = '#/' + route; }
+window.addEventListener('hashchange', render);
+
+function renderNav() {
+  const r = currentRoute();
+  const urgent = lateDeals().length + dueToday().length;
+  $('#nav').innerHTML = Object.entries(ROUTES).map(([key, v]) => `
+    <button class="nav-item ${key === r ? 'active' : ''}" data-go="${key}">
+      ${ICONS[v.icon]}<span>${v.title}</span>
+      ${key === 'aujourdhui' && urgent ? `<span class="nav-count">${urgent}</span>` : ''}
+    </button>`).join('');
+  $$('#nav [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+}
+
+function renderBackupChip() {
+  const chip = $('#backupChip'), txt = $('#backupTxt');
+  const last = S.meta.lastBackupAt;
+  const n = S.contacts.length + S.deals.length;
+  txt.textContent = 'Sauvegarde : ' + relPast(last);
+  chip.classList.toggle('warn', n > 5 && (!last || daysSince(last) > 7));
+}
+
+function render() {
+  const route = currentRoute();
+  renderNav();
+  renderBackupChip();
+  const meta = ROUTES[route];
+  const counts = {
+    aujourdhui: '', pipeline: openDeals().length + ' affaires en cours',
+    contacts: S.contacts.length + ' fiches', stats: '', reglages: '',
+  };
+  $('#viewTitle').innerHTML = esc(meta.title) + (counts[route] ? ` <span class="sub">${esc(counts[route])}</span>` : '');
+  const view = $('#view');
+  view.className = 'view' + (route === 'pipeline' ? ' wide' : '');
+  renderBulkbar();
+  if (!S.meta.onboarded && !S.contacts.length && !S.deals.length && route === 'aujourdhui') { renderWelcome(view); return; }
+  ({ aujourdhui: renderToday, pipeline: renderPipeline, contacts: renderContacts, stats: renderStats, reglages: renderSettings })[route](view);
+}
+
+/* ============================================================
+   5. ACCUEIL PREMIER LANCEMENT
+   ============================================================ */
+function renderWelcome(view) {
+  view.innerHTML = `
+    <div class="welcome">
+      <svg width="52" height="52" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 22V14M15 22V10M21 22V17" stroke="var(--accent-ink)" stroke-width="3" stroke-linecap="round"/><circle cx="25.5" cy="9.5" r="2.5" fill="var(--red)"/></svg>
+      <h1>Qui devez-vous relancer&nbsp;?</h1>
+      <p>Cadence est un CRM construit autour d&rsquo;une seule discipline&nbsp;: la relance.
+      80&nbsp;% des ventes se signent entre la 5<sup>e</sup> et la 12<sup>e</sup> relance —
+      cet outil vous dit chaque matin qui relancer, et garde la mémoire de chaque échange.</p>
+      <div class="row">
+        <button class="btn btn-primary" id="wDemo">Découvrir avec des données d&rsquo;exemple</button>
+        <button class="btn" id="wEmpty">Commencer vide</button>
+        <button class="btn" id="wImport">Importer mon fichier Excel&nbsp;/&nbsp;CSV</button>
+      </div>
+      <p class="fine">Un seul fichier. Zéro serveur, zéro compte, zéro cookie.<br>
+      Vos données restent dans ce navigateur — conformité RGPD par conception.</p>
+    </div>`;
+  $('#wDemo').onclick = () => { seedDemo(); S.meta.onboarded = true; commit(); toast('Données d’exemple chargées — remplacez-les quand vous voulez (Réglages)'); };
+  $('#wEmpty').onclick = () => { S.meta.onboarded = true; commit(); openQuickAdd(); };
+  $('#wImport').onclick = () => { S.meta.onboarded = true; persist(); openCsvImport(); };
+}
+
+/* ============================================================
+   6. VUE AUJOURD'HUI — la liste du matin
+   ============================================================ */
+function renderToday(view) {
+  const late = lateDeals().sort((a, b) => a.next.date.localeCompare(b.next.date));
+  const todayList = dueToday();
+  const tomorrow = dueTomorrow();
+  const sleeping = sleepDeals();
+  const noAction = noActionDeals();
+  const n = late.length + todayList.length;
+  const needBackup = (S.contacts.length + S.deals.length) > 5 && (!S.meta.lastBackupAt || daysSince(S.meta.lastBackupAt) > 7);
+
+  view.innerHTML = `
+    <div class="today-hero">
+      <div>
+        <h1>${n === 0 ? 'Rien d’urgent. Belle journée.' : n + ' relance' + (n > 1 ? 's' : '') + ' à traiter'}</h1>
+        <div class="date">${dfLong.format(new Date())}</div>
+      </div>
+      <div class="today-actions">
+        <button class="btn" id="icsBtn" title="Exporter les relances vers votre agenda">Agenda .ics</button>
+        <button class="btn btn-primary" id="todayAdd">+ Affaire</button>
+      </div>
+    </div>
+    ${needBackup ? `<div class="banner">Aucune sauvegarde depuis ${S.meta.lastBackupAt ? daysSince(S.meta.lastBackupAt) + ' jours' : 'le début'}. Vos données ne vivent que dans ce navigateur.
+      <button class="btn btn-sm" id="bannerBackup">Exporter maintenant</button></div>` : ''}
+    ${sectionTasks('En retard', late, 'late')}
+    ${sectionTasks("Aujourd'hui", todayList, 'today')}
+    ${sectionTasks('Demain', tomorrow, 'tomorrow')}
+    ${noAction.length ? `
+      <div class="section-head"><h2>Sans prochaine action</h2><span class="count">${noAction.length}</span>
+      <span class="spacer"></span><span class="muted" style="font-size:11.5px">une affaire sans action datée finit oubliée</span></div>
+      <div class="card task-list">${noAction.map(d => taskRow(d, 'noaction')).join('')}</div>` : ''}
+    ${sleeping.length ? `
+      <div class="section-head"><h2>À réveiller</h2><span class="count">${sleeping.length}</span>
+      <span class="spacer"></span><span class="muted" style="font-size:11.5px">sans activité depuis trop longtemps</span></div>
+      <div class="card task-list">${sleeping.map(d => taskRow(d, 'sleep')).join('')}</div>` : ''}
+    ${!openDeals().length ? `<div class="card empty">
+        <div class="big">Aucune affaire en cours</div>
+        <div>Créez votre première affaire — un nom suffit pour commencer.</div>
+        <button class="btn btn-primary" id="emptyAdd">+ Nouvelle affaire</button>
+      </div>` : ''}
+  `;
+  const bb = $('#bannerBackup'); if (bb) bb.onclick = exportBackup;
+  $('#icsBtn').onclick = exportICS;
+  $('#todayAdd').onclick = () => openQuickAdd();
+  const ea = $('#emptyAdd'); if (ea) ea.onclick = () => openQuickAdd();
+  bindTaskRows(view);
+}
+
+function sectionTasks(title, list, mode) {
+  if (!list.length && mode !== 'late') return '';
+  if (!list.length) return '';
+  return `
+    <div class="section-head"><h2>${esc(title)}</h2><span class="count">${list.length}</span></div>
+    <div class="card task-list">${list.map(d => taskRow(d, mode)).join('')}</div>`;
+}
+
+function taskRow(d, mode) {
+  const c = contactById(d.contactId);
+  const late = mode === 'late';
+  const kindLabel = d.next ? (ACTION_KINDS[d.next.kind] || 'Relance') : '';
+  const tc = touchCount(d);
+  return `
+    <div class="task-row" data-deal="${d.id}" tabindex="0">
+      <span class="dot ${late ? 'red' : mode === 'sleep' || mode === 'noaction' ? 'amber' : 'green'}"></span>
+      <div class="task-main">
+        <div class="task-title"><span class="who">${esc(c ? c.name : '?')}${c && c.company ? ' · ' + esc(c.company) : ''}</span></div>
+        <div class="task-sub">
+          <span class="action-label">${d.next ? esc(kindLabel + (d.next.label ? ' — ' + d.next.label : '')) : mode === 'sleep' ? 'dernier échange ' + relPast(d.lastActivityAt || d.createdAt) : 'aucune action planifiée'}</span>
+          <span class="muted">·</span><span>${esc(d.title)}</span>
+        </div>
+      </div>
+      <div class="task-side">
+        ${late ? `<span class="overdue-days">J+${-daysFromToday(d.next.date)}</span>` : ''}
+        ${tc ? `<span class="chip" title="${tc} contact(s) pris sur cette affaire">n°${tc + 1}</span>` : ''}
+        <span class="money muted">${d.value ? fmtEUR(d.value) : ''}</span>
+        <span class="task-quick">
+          ${(mode === 'late' || mode === 'today' || mode === 'tomorrow') ? `
+            <button class="btn btn-xs btn-primary" data-done="${d.id}">Fait</button>
+            <button class="btn btn-xs" data-defer="${d.id}">Reporter</button>` : `
+            <button class="btn btn-xs btn-primary" data-plan="${d.id}">Planifier</button>`}
+        </span>
+      </div>
+    </div>`;
+}
+
+function bindTaskRows(root) {
+  $$('.task-row', root).forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      openDealDrawer(row.dataset.deal);
+    });
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.target.closest('button')) openDealDrawer(row.dataset.deal);
+    });
+  });
+  $$('[data-done]', root).forEach(b => b.onclick = () => markDone(b.dataset.done, b.closest('.task-row')));
+  $$('[data-defer]', root).forEach(b => b.onclick = () => inlineSchedule(b.dataset.defer, b.closest('.task-row'), { defer: true }));
+  $$('[data-plan]', root).forEach(b => b.onclick = () => inlineSchedule(b.dataset.plan, b.closest('.task-row'), {}));
+}
+
+/* « Fait » : consigne l'action dans le fil, puis planifie la suivante en une frappe. */
+function markDone(dealId, rowEl) {
+  const d = dealById(dealId);
+  if (!d) return;
+  const kind = d.next && d.next.kind ? d.next.kind : 'relance';
+  const type = kind === 'relance' ? 'appel' : (kind in ACT_TYPES ? kind : 'appel');
+  addActivity({ dealId: d.id, contactId: d.contactId, type: ['appel','email','rdv'].includes(type) ? type : 'appel',
+    text: (ACTION_KINDS[kind] || 'Relance') + (d.next && d.next.label ? ' — ' + d.next.label : '') + ' ✓' });
+  d.next = null;
+  persist();
+  inlineSchedule(dealId, rowEl, { afterDone: true });
+}
+
+/* Planificateur inline : Entrée = accepter la suggestion. Jamais de modale. */
+function inlineSchedule(dealId, rowEl, opts = {}) {
+  const d = dealById(dealId);
+  if (!d || !rowEl) { render(); return; }
+  const delay = suggestedDelay(d);
+  const kinds = Object.entries(ACTION_KINDS);
+  const holder = document.createElement('div');
+  holder.className = 'task-row';
+  holder.innerHTML = `
+    <div class="drop-prompt" style="flex:1">
+      <span>${opts.afterDone ? 'Fait ✓ — prochaine action :' : 'Prochaine action :'}</span>
+      <select class="k" style="background:transparent;border:none;color:inherit;font-family:var(--mono);font-size:12px">
+        ${kinds.map(([k, v]) => `<option value="${k}" ${k === 'relance' ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <input class="dt" type="date" value="${addDays(today(), delay)}">
+      <span style="opacity:.75">dans ${delay} j</span>
+      <kbd>Entrée</kbd>
+      <span style="flex:1"></span>
+      ${opts.afterDone ? `<button class="btn btn-xs" data-close-deal style="border-color:color-mix(in srgb,var(--accent-ink) 35%,transparent);background:none;color:inherit">Clore l’affaire…</button>` : ''}
+      <button class="btn btn-xs" data-cancel style="border-color:color-mix(in srgb,var(--accent-ink) 35%,transparent);background:none;color:inherit">Échap</button>
+    </div>`;
+  rowEl.replaceWith(holder);
+  const dt = $('.dt', holder), k = $('.k', holder);
+  dt.focus();
+  const validate = () => {
+    d.next = { kind: k.value, label: '', date: dt.value || addDays(today(), delay) };
+    commit();
+    toast('Prochaine action : ' + (ACTION_KINDS[k.value] || '') + ' ' + relDay(d.next.date));
+  };
+  holder.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); validate(); }
+    if (e.key === 'Escape') { e.preventDefault(); render(); }
+  });
+  const cc = $('[data-close-deal]', holder);
+  if (cc) cc.onclick = () => openCloseDeal(d.id);
+  $('[data-cancel]', holder).onclick = () => render();
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   7. VUE PIPELINE — kanban
+   ============================================================ */
+const CLOSED_WINDOW_DAYS = 30;
+
+function renderPipeline(view) {
+  const t = pipelineTotals();
+  const stages = S.settings.stages;
+  const recentWon = S.deals.filter(d => d.status === 'won' && d.closedAt && daysSince(d.closedAt) <= CLOSED_WINDOW_DAYS);
+  const recentLost = S.deals.filter(d => d.status === 'lost' && d.closedAt && daysSince(d.closedAt) <= CLOSED_WINDOW_DAYS);
+  const archWon = S.deals.filter(d => d.status === 'won').length - recentWon.length;
+  const archLost = S.deals.filter(d => d.status === 'lost').length - recentLost.length;
+
+  view.innerHTML = `
+    <div style="padding: 0 26px;">
+      <div class="card pipe-band">
+        <div class="pipe-stat"><span class="v money">${fmtEUR(t.pond)}</span><span class="l">pipeline pondéré</span></div>
+        <div class="sep"></div>
+        <div class="pipe-stat"><span class="v money" style="font-weight:600;color:var(--ink-2)">${fmtEUR(t.brut)}</span><span class="l">valeur brute</span></div>
+        <div class="sep"></div>
+        <div class="pipe-stat"><span class="v money" style="color:var(--green)">${fmtEUR(t.wonMonth)}</span><span class="l">gagné ce mois</span></div>
+        <div class="sep"></div>
+        <div class="pipe-stat"><span class="v ${t.late ? 'red' : ''}">${t.late}</span><span class="l">relance${t.late > 1 ? 's' : ''} en retard</span></div>
+      </div>
+    </div>
+    <div class="board" id="board">
+      ${stages.map(st => stageColumn(st)).join('')}
+      ${closedColumn('won', 'Gagné', recentWon, archWon)}
+      ${closedColumn('lost', 'Perdu', recentLost, archLost)}
+    </div>`;
+  bindBoard(view);
+}
+
+function stageColumn(st) {
+  const deals = openDeals().filter(d => d.stageId === st.id)
+    .sort((a, b) => (a.next && a.next.date ? a.next.date : '9999').localeCompare(b.next && b.next.date ? b.next.date : '9999'));
+  const brut = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  const pond = deals.reduce((s, d) => s + dealWeighted(d), 0);
+  return `
+    <div class="col" data-stage="${st.id}">
+      <div class="col-head"><span class="name">${esc(st.name)}</span><span class="n">${deals.length}</span><span class="prob">${st.prob}&nbsp;%</span></div>
+      <div class="col-totals"><span>${fmtEUR(brut)}</span><span>· pondéré ${fmtEUR(pond)}</span></div>
+      <div class="col-body" data-drop="${st.id}">
+        ${deals.map(d => dealCard(d)).join('')}
+        <button class="btn btn-ghost btn-sm" data-add-stage="${st.id}" style="justify-content:flex-start">+ Ajouter</button>
+      </div>
+    </div>`;
+}
+
+function closedColumn(status, label, deals, archived) {
+  const total = deals.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  return `
+    <div class="col closed" data-status="${status}">
+      <div class="col-head"><span class="name" style="color:${status === 'won' ? 'var(--green)' : 'var(--ink-3)'}">${label}</span><span class="n">${deals.length}</span><span class="prob">30 j</span></div>
+      <div class="col-totals"><span>${fmtEUR(total)}</span></div>
+      <div class="col-body" data-drop-status="${status}">
+        ${deals.sort((a, b) => b.closedAt.localeCompare(a.closedAt)).map(d => dealCard(d, true)).join('')}
+        ${archived > 0 ? `<div class="muted" style="font-family:var(--mono);font-size:10px;padding:4px 6px">+ ${archived} archivée${archived > 1 ? 's' : ''} — tout reste dans les statistiques et la recherche</div>` : ''}
+      </div>
+    </div>`;
+}
+
+function dealCard(d, closed = false) {
+  const c = contactById(d.contactId);
+  const alert = dealAlert(d);
+  const tc = touchCount(d);
+  const stateClass = alert === 'late' ? 'state-late' : alert === 'sleep' ? 'state-sleep' : '';
+  let foot = '';
+  if (closed) {
+    foot = `<span class="next-chip">${d.status === 'won' ? 'gagnée' : 'perdue'} ${relPast(d.closedAt)}</span>
+            ${d.status === 'lost' && d.lostReason ? `<span class="spacer"></span><span class="sleep-tag" style="color:var(--ink-3)">${esc(d.lostReason)}</span>` : ''}`;
+  } else if (alert === 'late') {
+    foot = `<span class="next-chip late">⚑ relance J+${-daysFromToday(d.next.date)}</span>`;
+  } else if (d.next && d.next.date) {
+    foot = `<span class="next-chip">→ ${esc(ACTION_KINDS[d.next.kind] || 'Relance')} ${relDay(d.next.date)}</span>`;
+  } else {
+    foot = `<span class="next-chip none">sans action</span>`;
+  }
+  const sleep = alert === 'sleep' ? `<span class="spacer"></span><span class="sleep-tag">dort depuis ${daysSince(d.lastActivityAt || d.createdAt)} j</span>` : '';
+  return `
+    <div class="deal-card ${stateClass}" draggable="${!closed}" data-deal="${d.id}" tabindex="0" role="button" aria-label="${esc(d.title)}">
+      <div class="deal-top">
+        <span class="deal-title">${esc(d.title)}</span>
+        <span class="deal-amount">${d.value ? fmtEUR(d.value) : '—'}</span>
+      </div>
+      <div class="deal-who">${esc(c ? c.name : '?')}${c && c.company ? ' · ' + esc(c.company) : ''}</div>
+      <div class="deal-foot">${foot}${sleep}${!closed && tc ? `<span class="spacer"></span><span class="chip" title="${tc} contact(s) déjà pris">n°${tc + 1}</span>` : ''}</div>
+    </div>`;
+}
+
+let dragDealId = null;
+
+function bindBoard(view) {
+  $$('.deal-card', view).forEach(card => {
+    card.addEventListener('click', () => openDealDrawer(card.dataset.deal));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter') openDealDrawer(card.dataset.deal); });
+    if (card.draggable) {
+      card.addEventListener('dragstart', e => {
+        dragDealId = card.dataset.deal;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', dragDealId); } catch (_) {}
+      });
+      card.addEventListener('dragend', () => { card.classList.remove('dragging'); dragDealId = null; });
+    }
+  });
+  $$('.col-body', view).forEach(body => {
+    body.addEventListener('dragover', e => { e.preventDefault(); body.classList.add('dragover'); });
+    body.addEventListener('dragleave', () => body.classList.remove('dragover'));
+    body.addEventListener('drop', e => {
+      e.preventDefault();
+      body.classList.remove('dragover');
+      const id = dragDealId || e.dataTransfer.getData('text/plain');
+      if (!id) return;
+      if (body.dataset.drop) moveDealToStage(id, body.dataset.drop);
+      else if (body.dataset.dropStatus) openCloseDeal(id, body.dataset.dropStatus);
+    });
+  });
+  $$('[data-add-stage]', view).forEach(b => b.onclick = e => { e.stopPropagation(); openQuickAdd({ stageId: b.dataset.addStage }); });
+}
+
+/* Changement d'étape : consigné dans l'historique, puis micro-prompt de relance sur la carte. */
+function moveDealToStage(dealId, stageId) {
+  const d = dealById(dealId);
+  if (!d || d.stageId === stageId && d.status === 'open') { render(); return; }
+  const from = stageById(d.stageId), to = stageById(stageId);
+  const reopened = d.status !== 'open';
+  d.status = 'open'; d.closedAt = null; d.lostReason = null;
+  d.stageId = stageId;
+  d.stageHistory.push({ stageId, at: new Date().toISOString() });
+  addActivity({ dealId: d.id, contactId: d.contactId, type: 'etape', text: reopened ? 'Affaire réouverte → ' + (to ? to.name : stageId) : (from ? from.name : '?') + ' → ' + (to ? to.name : stageId) });
+  d.lastActivityAt = new Date().toISOString();
+  persist(); render();
+  // micro-prompt sur la carte fraîchement déplacée (pas depuis le tiroir)
+  if (!drawerOpen) {
+    const card = $(`.deal-card[data-deal="${d.id}"]`);
+    if (card) dropPrompt(d, card);
+  }
+}
+
+/* Une frappe : Entrée planifie la relance suggérée. Échap laisse tel quel. */
+function dropPrompt(d, card) {
+  const delay = suggestedDelay(d);
+  const prompt = document.createElement('div');
+  prompt.className = 'drop-prompt';
+  prompt.innerHTML = `
+    <span>Relance</span>
+    <input class="dt" type="date" value="${addDays(today(), delay)}" aria-label="Date de relance">
+    <span style="opacity:.7">J+${delay}</span>
+    <span style="flex:1"></span>
+    <kbd>Entrée</kbd>`;
+  card.after(prompt);
+  const dt = $('.dt', prompt);
+  dt.focus();
+  let doneFlag = false;
+  const accept = () => {
+    if (doneFlag) return; doneFlag = true;
+    d.next = { kind: 'relance', label: '', date: dt.value || addDays(today(), delay) };
+    commit();
+  };
+  const cancel = () => { if (doneFlag) return; doneFlag = true; prompt.remove(); };
+  prompt.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); accept(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  dt.addEventListener('blur', () => setTimeout(cancel, 120));
+}
+
+/* ============================================================
+   8. CLÔTURE — Gagné / Perdu
+   ============================================================ */
+function openCloseDeal(dealId, presetStatus) {
+  const d = dealById(dealId);
+  if (!d) return;
+  const c = contactById(d.contactId);
+  const reasons = S.settings.lossReasons;
+  openModal(`
+    <div class="modal-head"><h2>Clore « ${esc(d.title)} »</h2></div>
+    <div class="modal-body">
+      <div class="choice-chips" id="statusChips">
+        <button data-st="won" class="${presetStatus === 'won' ? 'on' : ''}">✓ Gagnée</button>
+        <button data-st="lost" class="${presetStatus === 'lost' ? 'on' : ''}">Perdue</button>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Montant final (€ HT)</label><input class="input" id="clVal" type="number" min="0" step="50" value="${Number(d.value) || 0}"></div>
+        <div class="field"><label>Date</label><input class="input" id="clDate" type="date" value="${today()}"></div>
+      </div>
+      <div class="field" id="lossWrap" style="display:${presetStatus === 'lost' ? 'flex' : 'none'}">
+        <label>Raison de la perte <span class="opt">— 40 à 60 % des affaires se perdent sans décision : sachez-le</span></label>
+        <div class="choice-chips" id="lossChips">
+          ${reasons.map(r => `<button data-r="${esc(r)}">${esc(r)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="muted" style="font-size:12px">${esc(c ? c.name : '')}${c && c.company ? ' · ' + esc(c.company) : ''}</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close>Annuler</button>
+      <button class="btn btn-primary" id="clOk" ${presetStatus ? '' : 'disabled'}>Confirmer</button>
+    </div>`);
+  let status = presetStatus || null;
+  let lossReason = null;
+  const okBtn = $('#clOk');
+  $$('#statusChips button').forEach(b => b.onclick = () => {
+    status = b.dataset.st;
+    $$('#statusChips button').forEach(x => x.classList.toggle('on', x === b));
+    $('#lossWrap').style.display = status === 'lost' ? 'flex' : 'none';
+    okBtn.disabled = false;
+  });
+  $$('#lossChips button').forEach(b => b.onclick = () => {
+    lossReason = b.dataset.r;
+    $$('#lossChips button').forEach(x => x.classList.toggle('on', x === b));
+  });
+  okBtn.onclick = () => {
+    if (!status) return;
+    d.status = status;
+    d.value = Number($('#clVal').value) || 0;
+    const dateStr = $('#clDate').value || today();
+    d.closedAt = new Date(parseISO(dateStr).setHours(12)).toISOString();
+    d.lostReason = status === 'lost' ? (lossReason || 'Non précisé') : null;
+    d.next = null;
+    addActivity({ dealId: d.id, contactId: d.contactId, type: 'etape', text: status === 'won' ? 'Affaire gagnée — ' + fmtEUR(d.value) : 'Affaire perdue — ' + (d.lostReason || '') });
+    closeModal(); closeDrawer(); commit();
+    toast(status === 'won' ? 'Affaire gagnée — ' + fmtEUR(d.value) : 'Affaire classée perdue');
+  };
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   9. VUE CONTACTS — table, édition inline, actions groupées
+   ============================================================ */
+let contactsQuery = '';
+let contactsTagFilter = null;
+let contactsLimit = 200;
+const selectedContacts = new Set();
+
+function allTags() {
+  const t = new Set();
+  S.contacts.forEach(c => (c.tags || []).forEach(x => t.add(x)));
+  return [...t].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+function renderContacts(view) {
+  const q = norm(contactsQuery);
+  let list = S.contacts.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  if (q) list = list.filter(c => norm(c.name + ' ' + (c.company || '') + ' ' + (c.email || '') + ' ' + (c.phone || '')).includes(q));
+  if (contactsTagFilter) list = list.filter(c => (c.tags || []).includes(contactsTagFilter));
+  const shown = list.slice(0, contactsLimit);
+  const tags = allTags();
+
+  view.innerHTML = `
+    <div class="toolbar">
+      <input class="input" id="cSearch" type="search" placeholder="Filtrer les contacts…" value="${esc(contactsQuery)}">
+      ${tags.length ? `<div class="tag-filter">${tags.map(t => `<button class="chip tag ${contactsTagFilter === t ? 'on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}
+      <span class="spacer"></span>
+      <button class="btn" id="csvImportBtn">Importer CSV</button>
+      <button class="btn" id="csvExportBtn">Exporter CSV</button>
+      <button class="btn btn-primary" id="newContactBtn">+ Contact</button>
+    </div>
+    ${!S.contacts.length ? `<div class="card empty">
+        <div class="big">Aucun contact</div>
+        <div>Importez votre fichier Excel/CSV existant, ou créez une fiche — un nom suffit.</div>
+        <div style="display:flex;gap:8px"><button class="btn" id="emptyImport">Importer CSV</button>
+        <button class="btn btn-primary" id="emptyNew">+ Contact</button></div>
+      </div>` : `
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th class="rowcheck"><input type="checkbox" id="checkAll" aria-label="Tout sélectionner"></th>
+          <th>Nom</th><th>Société</th><th>Email</th><th>Téléphone</th><th>Tags</th>
+          <th style="text-align:right">Affaires</th><th>Dernier échange</th>
+        </tr></thead>
+        <tbody>
+          ${shown.map(contactRow).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${list.length > contactsLimit ? `<div style="text-align:center;margin-top:12px"><button class="btn" id="moreBtn">Afficher plus (${list.length - contactsLimit} restants)</button></div>` : ''}
+    `}
+  `;
+  const cs = $('#cSearch');
+  cs.oninput = debounce(() => { contactsQuery = cs.value; contactsLimit = 200; renderContacts(view); $('#cSearch').focus(); const v = $('#cSearch'); v.setSelectionRange(v.value.length, v.value.length); }, 60);
+  $$('.tag-filter .chip', view).forEach(b => b.onclick = () => { contactsTagFilter = contactsTagFilter === b.dataset.tag ? null : b.dataset.tag; renderContacts(view); });
+  $('#csvImportBtn') && ($('#csvImportBtn').onclick = openCsvImport);
+  $('#csvExportBtn') && ($('#csvExportBtn').onclick = exportContactsCSV);
+  $('#newContactBtn') && ($('#newContactBtn').onclick = () => openContactModal());
+  $('#emptyImport') && ($('#emptyImport').onclick = openCsvImport);
+  $('#emptyNew') && ($('#emptyNew').onclick = () => openContactModal());
+  $('#moreBtn') && ($('#moreBtn').onclick = () => { contactsLimit += 300; renderContacts(view); });
+
+  const checkAll = $('#checkAll');
+  if (checkAll) checkAll.checked = shown.length > 0 && shown.every(c => selectedContacts.has(c.id));
+  if (checkAll) checkAll.onchange = () => {
+    shown.forEach(c => checkAll.checked ? selectedContacts.add(c.id) : selectedContacts.delete(c.id));
+    renderContacts(view); renderBulkbar();
+  };
+  bindContactRows(view);
+  renderBulkbar();
+}
+
+function contactRow(c) {
+  const deals = dealsOfContact(c.id);
+  const open = deals.filter(d => d.status === 'open');
+  const openVal = open.reduce((s, d) => s + (Number(d.value) || 0), 0);
+  const lastAct = actsOfContact(c.id)[0];
+  return `
+    <tr data-contact="${c.id}" tabindex="0">
+      <td class="rowcheck"><input type="checkbox" data-check="${c.id}" ${selectedContacts.has(c.id) ? 'checked' : ''} aria-label="Sélectionner ${esc(c.name)}"></td>
+      <td><span class="cell-edit" tabindex="0" role="button" data-edit="name" data-id="${c.id}">${esc(c.name)}</span></td>
+      <td><span class="cell-edit" tabindex="0" role="button" data-edit="company" data-id="${c.id}">${esc(c.company || '')}</span></td>
+      <td><span class="cell-edit" tabindex="0" role="button" data-edit="email" data-id="${c.id}">${esc(c.email || '')}</span></td>
+      <td><span class="cell-edit mono" tabindex="0" role="button" style="font-size:12px" data-edit="phone" data-id="${c.id}">${esc(fmtPhone(c.phone) || '')}</span></td>
+      <td>${(c.tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join(' ')}</td>
+      <td class="num">${open.length ? open.length + ' · ' + fmtEUR(openVal) : (deals.length ? '<span class="muted">' + deals.length + ' close(s)</span>' : '<span class="muted">—</span>')}</td>
+      <td class="muted" style="font-size:12px">${lastAct ? relPast(lastAct.at) : 'jamais'}</td>
+    </tr>`;
+}
+
+function bindContactRows(view) {
+  $$('tbody tr', view).forEach(tr => {
+    tr.addEventListener('click', e => {
+      if (e.target.closest('input, .cell-edit')) return;
+      openContactDrawer(tr.dataset.contact);
+    });
+    tr.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.target.closest('input, .cell-edit')) openContactDrawer(tr.dataset.contact);
+    });
+  });
+  $$('[data-check]', view).forEach(ch => ch.onchange = e => {
+    e.stopPropagation();
+    ch.checked ? selectedContacts.add(ch.dataset.check) : selectedContacts.delete(ch.dataset.check);
+    renderBulkbar();
+  });
+  /* édition inline : clic = éditer, Entrée = valider, Échap = annuler, Tab = champ suivant */
+  $$('.cell-edit', view).forEach(cell => {
+    cell.addEventListener('click', e => {
+      e.stopPropagation();
+      if (cell.querySelector('input')) return;
+      startCellEdit(cell);
+    });
+    cell.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ' ') && !cell.querySelector('input')) {
+        e.preventDefault(); e.stopPropagation(); startCellEdit(cell);
+      }
+    });
+  });
+}
+
+function startCellEdit(cell) {
+  const id = cell.dataset.id, field = cell.dataset.edit;
+  const c = contactById(id);
+  if (!c) return;
+  const old = c[field] || '';
+  cell.innerHTML = `<input type="text" value="${esc(old)}">`;
+  const input = $('input', cell);
+  input.focus(); input.select();
+  let closed = false;
+  const finish = (save, goNext) => {
+    if (closed) return; closed = true;
+    if (save) {
+      const v = input.value.trim();
+      if (v !== old) {
+        c[field] = v;
+        persist();
+        if (field === 'email' || field === 'phone') warnDuplicate(c);
+      }
+    }
+    const tr = cell.closest('tr');
+    cell.innerHTML = esc(field === 'phone' ? fmtPhone(c[field]) : (c[field] || ''));
+    if (goNext && tr) {
+      const cells = $$('.cell-edit', tr);
+      const i = cells.indexOf(cell);
+      const next = cells[i + 1];
+      if (next) startCellEdit(next);
+    }
+    renderNav();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true, false); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false, false); }
+    else if (e.key === 'Tab') { e.preventDefault(); finish(true, true); }
+  });
+  input.addEventListener('blur', () => finish(true, false));
+}
+
+function warnDuplicate(c) {
+  const dup = findDuplicate(c, c.id);
+  if (dup) toast('Attention : doublon possible avec « ' + dup.name + ' »');
+}
+function findDuplicate({ email, phone }, excludeId) {
+  const e = norm(email || '').trim();
+  const p = String(phone || '').replace(/\D/g, '');
+  return S.contacts.find(c => c.id !== excludeId && (
+    (e && norm(c.email || '') === e) || (p && p.length >= 9 && String(c.phone || '').replace(/\D/g, '').slice(-9) === p.slice(-9))
+  ));
+}
+
+/* ---------- barre d'actions groupées ---------- */
+function renderBulkbar() {
+  let bar = $('#bulkbar');
+  if (!selectedContacts.size || currentRoute() !== 'contacts') { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'bulkbar';
+    bar.className = 'bulkbar';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `
+    <span class="n">${selectedContacts.size} sélectionné${selectedContacts.size > 1 ? 's' : ''}</span>
+    <button class="btn btn-sm" id="bulkTag">Taguer</button>
+    <button class="btn btn-sm" id="bulkExport">Exporter</button>
+    <button class="btn btn-sm" id="bulkDelete">Supprimer</button>
+    <button class="btn btn-sm" id="bulkClear" style="border:none;text-decoration:underline">Annuler</button>`;
+  $('#bulkClear').onclick = () => { selectedContacts.clear(); render(); renderBulkbar(); };
+  $('#bulkExport').onclick = () => exportContactsCSV([...selectedContacts]);
+  $('#bulkDelete').onclick = () => bulkDeleteContacts();
+  $('#bulkTag').onclick = () => {
+    openModal(`
+      <div class="modal-head"><h2>Taguer ${selectedContacts.size} contact(s)</h2></div>
+      <div class="modal-body">
+        <div class="field"><label>Tag</label><input class="input" id="bulkTagName" list="tagList" placeholder="client, prospect, partenaire…">
+        <datalist id="tagList">${allTags().map(t => `<option value="${esc(t)}">`).join('')}</datalist></div>
+      </div>
+      <div class="modal-foot"><button class="btn" data-close>Annuler</button><button class="btn btn-primary" id="bulkTagOk">Appliquer</button></div>`);
+    $('#bulkTagName').focus();
+    $('#bulkTagOk').onclick = () => {
+      const tag = $('#bulkTagName').value.trim();
+      if (!tag) return;
+      selectedContacts.forEach(id => { const c = contactById(id); if (c && !(c.tags || []).includes(tag)) c.tags = [...(c.tags || []), tag]; });
+      closeModal(); selectedContacts.clear(); commit(); renderBulkbar();
+      toast('Tag « ' + tag + ' » appliqué');
+    };
+  };
+}
+
+function bulkDeleteContacts() {
+  const ids = [...selectedContacts];
+  const snapshot = JSON.stringify({ contacts: S.contacts, deals: S.deals, activities: S.activities });
+  ids.forEach(removeContactCascade);
+  selectedContacts.clear();
+  commit(); renderBulkbar();
+  toast(ids.length + ' contact(s) supprimé(s)', () => {
+    const snap = JSON.parse(snapshot);
+    S.contacts = snap.contacts; S.deals = snap.deals; S.activities = snap.activities;
+    commit();
+  });
+}
+function removeContactCascade(cid) {
+  S.deals = S.deals.filter(d => d.contactId !== cid);
+  S.activities = S.activities.filter(a => a.contactId !== cid);
+  S.contacts = S.contacts.filter(c => c.id !== cid);
+}
+
+/* ============================================================
+   10. FICHE CONTACT — modale de création / édition
+   ============================================================ */
+function openContactModal(contactId, onDone) {
+  const c = contactId ? contactById(contactId) : null;
+  openModal(`
+    <div class="modal-head"><h2>${c ? 'Modifier la fiche' : 'Nouveau contact'}</h2></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>Nom *</label><input class="input" id="fName" value="${esc(c ? c.name : '')}" placeholder="Marie Lefort" autocomplete="off"></div>
+        <div class="field"><label>Société <span class="opt">optionnel</span></label><input class="input" id="fCompany" value="${esc(c ? c.company || '' : '')}" placeholder="Atelier Lefort"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Email <span class="opt">optionnel</span></label><input class="input" id="fEmail" type="email" value="${esc(c ? c.email || '' : '')}" autocomplete="off"></div>
+        <div class="field"><label>Téléphone <span class="opt">optionnel</span></label><input class="input" id="fPhone" value="${esc(c ? c.phone || '' : '')}" autocomplete="off"></div>
+      </div>
+      <div class="field"><label>Tags <span class="opt">séparés par des virgules</span></label><input class="input" id="fTags" value="${esc(c ? (c.tags || []).join(', ') : '')}" placeholder="prospect, salon-2026"></div>
+      <div id="dupWarn"></div>
+      <details class="fold">
+        <summary>Infos entreprise &amp; notes</summary>
+        <div class="fold-body" style="display:flex;flex-direction:column;gap:10px">
+          <div class="form-row">
+            <div class="field"><label>SIRET</label><input class="input mono" id="fSiret" value="${esc(c ? c.siret || '' : '')}" maxlength="17" placeholder="14 chiffres"></div>
+            <div class="field"><label>TVA intracommunautaire</label><input class="input mono" id="fTva" value="${esc(c ? c.tva || '' : '')}" placeholder="FR…"></div>
+          </div>
+          <div class="field"><label>Notes</label><textarea class="textarea" id="fNote">${esc(c ? c.note || '' : '')}</textarea></div>
+        </div>
+      </details>
+    </div>
+    <div class="modal-foot">
+      ${c ? '<button class="btn btn-danger left" id="fDelete">Supprimer</button>' : ''}
+      <button class="btn" data-close>Annuler</button>
+      <button class="btn btn-primary" id="fSave">${c ? 'Enregistrer' : 'Créer la fiche'}</button>
+    </div>`);
+  $('#fName').focus();
+
+  const checkDup = () => {
+    const dup = findDuplicate({ email: $('#fEmail').value, phone: $('#fPhone').value }, contactId);
+    $('#dupWarn').innerHTML = dup ? `<div class="field-warn">⚠ Doublon possible : <a data-opendup="${dup.id}">${esc(dup.name)}${dup.company ? ' · ' + esc(dup.company) : ''}</a> a le même email ou téléphone.</div>` : '';
+    const link = $('[data-opendup]');
+    if (link) link.onclick = () => { closeModal(); openContactDrawer(link.dataset.opendup); };
+  };
+  $('#fEmail').addEventListener('blur', checkDup);
+  $('#fPhone').addEventListener('blur', checkDup);
+
+  const save = () => {
+    const name = $('#fName').value.trim();
+    if (!name) { $('#fName').focus(); return; }
+    const siretRaw = $('#fSiret').value.replace(/\s/g, '');
+    if (siretRaw && !/^\d{14}$/.test(siretRaw)) { toast('SIRET : 14 chiffres attendus (champ laissé tel quel)'); }
+    const data = {
+      name,
+      company: $('#fCompany').value.trim(),
+      email: $('#fEmail').value.trim(),
+      phone: $('#fPhone').value.trim(),
+      tags: $('#fTags').value.split(',').map(s => s.trim()).filter(Boolean),
+      siret: $('#fSiret').value.trim(),
+      tva: $('#fTva').value.trim(),
+      note: $('#fNote').value,
+    };
+    let saved;
+    if (c) { Object.assign(c, data); saved = c; }
+    else { saved = Object.assign({ id: uid(), createdAt: new Date().toISOString() }, data); S.contacts.push(saved); }
+    closeModal(); commit();
+    if (c && drawerOpen) openContactDrawer(c.id);
+    if (onDone) onDone(saved);
+    else toast(c ? 'Fiche enregistrée' : 'Contact créé');
+  };
+  $('#fSave').onclick = save;
+  $('#modalRoot .modal-inner').addEventListener('keydown', function onk(e) {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && !e.target.closest('details')) { e.preventDefault(); save(); }
+  });
+  const del = $('#fDelete');
+  if (del) del.onclick = () => {
+    const snapshot = JSON.stringify({ contacts: S.contacts, deals: S.deals, activities: S.activities });
+    removeContactCascade(c.id);
+    closeModal(); closeDrawer(); commit();
+    toast('Contact supprimé (affaires et notes incluses)', () => {
+      const snap = JSON.parse(snapshot);
+      S.contacts = snap.contacts; S.deals = snap.deals; S.activities = snap.activities;
+      commit();
+    });
+  };
+}
+
+/* ============================================================
+   11. NOUVELLE AFFAIRE — création rapide
+   ============================================================ */
+function openQuickAdd(preset = {}) {
+  const stages = S.settings.stages;
+  openModal(`
+    <div class="modal-head"><h2>Nouvelle affaire</h2></div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Contact *</label>
+        <input class="input" id="qContact" list="qContactList" placeholder="Nom du contact — tapez pour chercher ou créer" autocomplete="off">
+        <datalist id="qContactList">
+          ${S.contacts.map(c => `<option value="${esc(c.name)}${c.company ? ' — ' + esc(c.company) : ''}">`).join('')}
+        </datalist>
+        <span class="field-hint" id="qContactHint"></span>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Société <span class="opt">si nouveau contact</span></label><input class="input" id="qCompany" placeholder="" autocomplete="off"></div>
+        <div class="field"><label>Montant estimé (€ HT)</label><input class="input" id="qValue" type="number" min="0" step="50" placeholder="2 500"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Intitulé <span class="opt">optionnel</span></label><input class="input" id="qTitle" placeholder="Refonte site vitrine"></div>
+        <div class="field"><label>Étape</label>
+          <select class="select" id="qStage">${stages.map(s => `<option value="${s.id}" ${preset.stageId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Prochaine action</label>
+          <select class="select" id="qKind">${Object.entries(ACTION_KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Pour le</label><input class="input" id="qDate" type="date" value="${addDays(today(), 3)}"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="left muted" style="font-size:11.5px">Seul le contact est obligatoire.</span>
+      <button class="btn" data-close>Annuler</button>
+      <button class="btn btn-primary" id="qSave">Créer l’affaire</button>
+    </div>`);
+  const qc = $('#qContact');
+  qc.focus();
+  const matchContact = () => {
+    const full = qc.value.trim();
+    const raw = qc.value.split('—')[0].trim();
+    const found = S.contacts.find(x => norm(x.name + (x.company ? ' — ' + x.company : '')) === norm(full))
+      || S.contacts.find(x => norm(x.name) === norm(raw));
+    $('#qContactHint').textContent = found ? 'Contact existant — l’affaire sera rattachée à sa fiche.' : (raw ? 'Nouveau contact « ' + raw + ' » — la fiche sera créée.' : '');
+    if (found && found.company) $('#qCompany').value = found.company;
+    return found;
+  };
+  qc.addEventListener('input', matchContact);
+  const save = () => {
+    const full = qc.value.trim();
+    const raw = qc.value.split('—')[0].trim();
+    if (!raw) { qc.focus(); return; }
+    let contact = S.contacts.find(x => norm(x.name + (x.company ? ' — ' + x.company : '')) === norm(full))
+      || S.contacts.find(x => norm(x.name) === norm(raw));
+    if (!contact) {
+      contact = { id: uid(), name: raw, company: $('#qCompany').value.trim(), email: '', phone: '', tags: [], createdAt: new Date().toISOString() };
+      S.contacts.push(contact);
+    }
+    const now = new Date().toISOString();
+    const stageId = $('#qStage').value;
+    const deal = {
+      id: uid(),
+      title: $('#qTitle').value.trim() || 'Affaire — ' + (contact.company || contact.name),
+      contactId: contact.id,
+      value: Number($('#qValue').value) || 0,
+      stageId, prob: null,
+      status: 'open', lostReason: null,
+      createdAt: now, closedAt: null, lastActivityAt: now,
+      stageHistory: [{ stageId, at: now }],
+      next: { kind: $('#qKind').value, label: '', date: $('#qDate').value || addDays(today(), 3) },
+    };
+    S.deals.push(deal);
+    addActivity({ dealId: deal.id, contactId: contact.id, type: 'systeme', text: 'Affaire créée' });
+    closeModal(); commit();
+    toast('Affaire créée — relance ' + relDay(deal.next.date));
+  };
+  $('#qSave').onclick = save;
+  $('#modalRoot .modal-inner').addEventListener('keydown', function onk(e) {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    if (e.target === qc) { matchContact(); $('#qValue').focus(); return; } // Entrée valide la datalist, ne crée rien
+    save();
+  });
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   12. MODALES & TIROIRS — helpers
+   ============================================================ */
+function openModal(html) {
+  const m = $('#modalRoot');
+  m.innerHTML = `<div class="modal-inner">${html}</div>`;
+  if (!m.open) m.showModal();
+  $$('[data-close]', m).forEach(b => b.onclick = () => closeModal());
+}
+// La fermeture native (Échap) doit nettoyer autant que closeModal()
+$('#modalRoot').addEventListener('close', () => {
+  const m = $('#modalRoot');
+  m.innerHTML = '';
+  m.classList.remove('lg');
+});
+function closeModal() {
+  const m = $('#modalRoot');
+  if (m.open) m.close();
+  m.innerHTML = '';
+  m.classList.remove('lg');
+}
+
+let drawerOpen = false;
+let drawerReturnFocus = null;
+function openDrawer(html) {
+  const prevReturn = drawerReturnFocus;
+  closeDrawer(true);
+  const active = document.activeElement;
+  drawerReturnFocus = (active && active !== document.body) ? active : prevReturn;
+  const root = $('#overlayRoot');
+  root.insertAdjacentHTML('beforeend', `
+    <div class="drawer-veil" id="drawerVeil"></div>
+    <aside class="drawer" id="drawerEl" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="drawerTitle">${html}</aside>`);
+  const d = $('#drawerEl');
+  const h2 = d.querySelector('.drawer-head h2');
+  if (h2) h2.id = 'drawerTitle'; else d.setAttribute('aria-label', 'Détail');
+  requestAnimationFrame(() => {
+    const v = $('#drawerVeil');
+    if (v) v.classList.add('open');
+    d.classList.add('open');
+  });
+  d.focus();
+  d.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const f = [...d.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.disabled && el.offsetParent !== null);
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === d)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  $('#drawerVeil').onclick = () => closeDrawer();
+  drawerOpen = true;
+}
+function closeDrawer(instant = false) {
+  const v = $('#drawerVeil'), d = $('#drawerEl');
+  if (!v && !d) { drawerOpen = false; return; }
+  if (instant) { v && v.remove(); d && d.remove(); }
+  else {
+    v && v.classList.remove('open');
+    d && d.classList.remove('open');
+    setTimeout(() => { v && v.remove(); d && d.remove(); }, 200);
+    if (drawerReturnFocus && drawerReturnFocus.isConnected) drawerReturnFocus.focus();
+    drawerReturnFocus = null;
+  }
+  drawerOpen = false;
+}
+
+/* ============================================================
+   13. TIROIR AFFAIRE
+   ============================================================ */
+function openDealDrawer(dealId) {
+  const d = dealById(dealId);
+  if (!d) return;
+  const c = contactById(d.contactId);
+  const st = stageById(d.stageId);
+  const alert = dealAlert(d);
+  const tc = touchCount(d);
+  const acts = actsOfDeal(d.id);
+  const isOpen = d.status === 'open';
+  const ageDays = Math.max(0, Math.round((new Date() - new Date(d.createdAt)) / 864e5));
+
+  openDrawer(`
+    <div class="drawer-head">
+      <div style="flex:1;min-width:0">
+        <h2>${esc(d.title)}</h2>
+        <div class="sub">
+          ${isOpen ? `<span class="chip ${alert === 'late' ? 'red' : alert === 'sleep' || alert === 'noaction' ? 'amber' : ''}">${st ? esc(st.name) : ''}</span>` :
+            `<span class="chip ${d.status === 'won' ? 'green' : ''}">${d.status === 'won' ? 'Gagnée' : 'Perdue' + (d.lostReason ? ' · ' + esc(d.lostReason) : '')}</span>`}
+          ${tc ? `<span class="chip">relance n°${tc + 1}</span>` : ''}
+          <span>créée ${relPast(d.createdAt)} · ${ageDays} j</span>
+        </div>
+      </div>
+      <button class="iconbtn" id="dwClose" aria-label="Fermer">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-grid">
+        <div class="kv"><span class="k">Contact</span><span class="v"><a data-goto-contact="${d.contactId}" tabindex="0" style="cursor:pointer">${esc(c ? c.name : '?')}</a>${c && c.company ? ' · ' + esc(c.company) : ''}</span></div>
+        <div class="kv"><span class="k">Montant (€ HT)</span><span class="v"><span class="cell-edit money" id="dwValue">${d.value ? fmtEUR(d.value) : 'cliquer pour saisir'}</span></span></div>
+        <div class="kv"><span class="k">Étape</span><span class="v">
+          <select class="select" id="dwStage" ${isOpen ? '' : 'disabled'} style="padding:4px 8px">
+            ${S.settings.stages.map(s => `<option value="${s.id}" ${s.id === d.stageId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+          </select></span></div>
+        <div class="kv"><span class="k">Probabilité</span><span class="v">
+          <input class="input mono" id="dwProb" type="number" min="0" max="100" style="width:80px;padding:4px 8px" value="${d.prob != null && d.prob !== '' ? d.prob : ''}" placeholder="${st ? st.prob : 100}" ${isOpen ? '' : 'disabled'}>
+          <span class="muted" style="font-size:11px">% — vide = étape · pondéré ${fmtEUR(dealWeighted(d))}</span></span></div>
+      </div>
+
+      ${isOpen ? `
+      <div style="margin-top:16px;padding:12px 14px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface-2)">
+        <div class="eyebrow" style="margin-bottom:8px">Prochaine action</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select class="select" id="dwKind" style="width:auto">
+            ${Object.entries(ACTION_KINDS).map(([k, v]) => `<option value="${k}" ${d.next && d.next.kind === k ? 'selected' : ''}>${v}</option>`).join('')}
+          </select>
+          <input class="input" id="dwNextDate" type="date" style="width:auto" value="${d.next && d.next.date ? d.next.date : ''}">
+          <input class="input" id="dwNextLabel" placeholder="détail (optionnel)" style="flex:1;min-width:120px" value="${esc(d.next && d.next.label ? d.next.label : '')}">
+          <button class="btn btn-sm btn-primary" id="dwNextSave">OK</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn btn-xs" data-preset="1">Demain</button>
+          <button class="btn btn-xs" data-preset="3">+3 j</button>
+          <button class="btn btn-xs" data-preset="7">+7 j</button>
+          <button class="btn btn-xs" data-preset="monday">Lundi</button>
+          ${d.next ? '<button class="btn btn-xs" id="dwNextClear">Retirer</button>' : ''}
+        </div>
+      </div>` : ''}
+
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        ${isOpen ? `
+          ${c && c.email ? `<button class="btn btn-sm" id="dwEmail">✉ Relancer par email</button>` : ''}
+          ${c && c.phone ? `<a class="btn btn-sm" href="tel:${esc(String(c.phone).replace(/\s/g, ''))}">✆ Appeler</a>` : ''}
+          <button class="btn btn-sm" id="dwWon" style="color:var(--green)">✓ Gagnée</button>
+          <button class="btn btn-sm" id="dwLost">Perdue</button>` : `
+          <button class="btn btn-sm" id="dwReopen">Rouvrir l’affaire</button>`}
+        <span style="flex:1"></span>
+        <button class="btn btn-sm btn-danger" id="dwDelete">Supprimer</button>
+      </div>
+
+      <details class="fold" open>
+        <summary>Fil de l’affaire <span class="muted mono" style="font-size:10px">(${acts.length})</span></summary>
+        <div class="fold-body">
+          <div class="tl-add">
+            <div class="tl-typesel" id="dwActType">
+              <button data-t="note" class="on">Note</button><button data-t="appel">Appel</button><button data-t="email">Email</button><button data-t="rdv">RDV</button>
+            </div>
+            <input class="input" id="dwActText" placeholder="Consigner en 5 secondes… (Entrée)">
+          </div>
+          <div class="tl">${acts.map(tlItem).join('') || '<span class="muted" style="font-size:12px">Aucune activité pour l’instant.</span>'}</div>
+        </div>
+      </details>
+    </div>`);
+
+  $('#dwClose').onclick = () => closeDrawer();
+  const gc = $('[data-goto-contact]');
+  if (gc) {
+    gc.onclick = () => openContactDrawer(gc.dataset.gotoContact);
+    gc.onkeydown = e => { if (e.key === 'Enter') openContactDrawer(gc.dataset.gotoContact); };
+  }
+
+  /* montant : édition inline */
+  $('#dwValue').onclick = function () {
+    if (this.querySelector('input')) return;
+    this.innerHTML = `<input type="number" min="0" step="50" value="${Number(d.value) || ''}" style="width:110px">`;
+    const i = $('input', this);
+    i.focus(); i.select();
+    const fin = save => {
+      if (save) { d.value = Number(i.value) || 0; d.lastActivityAt = new Date().toISOString(); persist(); }
+      openDealDrawer(d.id);
+    };
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') fin(true); if (e.key === 'Escape') fin(false); });
+    i.addEventListener('blur', () => fin(true));
+  };
+
+  const stageSel = $('#dwStage');
+  if (stageSel && isOpen) stageSel.onchange = () => { moveDealToStage(d.id, stageSel.value); openDealDrawer(d.id); };
+  const probIn = $('#dwProb');
+  if (probIn && isOpen) probIn.onchange = () => {
+    d.prob = probIn.value === '' ? null : Math.max(0, Math.min(100, Number(probIn.value)));
+    persist(); openDealDrawer(d.id);
+  };
+
+  if (isOpen) {
+    const saveNext = () => {
+      const date = $('#dwNextDate').value;
+      if (!date) { $('#dwNextDate').focus(); return; }
+      d.next = { kind: $('#dwKind').value, label: $('#dwNextLabel').value.trim(), date };
+      commit(); openDealDrawer(d.id);
+    };
+    $('#dwNextSave').onclick = saveNext;
+    $$('[data-preset]').forEach(b => b.onclick = () => {
+      $('#dwNextDate').value = b.dataset.preset === 'monday' ? nextMonday() : addDays(today(), Number(b.dataset.preset));
+    });
+    const nc = $('#dwNextClear');
+    if (nc) nc.onclick = () => { d.next = null; commit(); openDealDrawer(d.id); };
+    $('#dwWon').onclick = () => openCloseDeal(d.id, 'won');
+    $('#dwLost').onclick = () => openCloseDeal(d.id, 'lost');
+    const em = $('#dwEmail');
+    if (em) em.onclick = () => openEmailModal(d);
+  } else {
+    $('#dwReopen').onclick = () => { const last = d.stageHistory[d.stageHistory.length - 1]; moveDealToStage(d.id, stageById(last && last.stageId) ? last.stageId : S.settings.stages[0].id); openDealDrawer(d.id); };
+  }
+
+  $('#dwDelete').onclick = () => {
+    const snapshot = JSON.stringify({ deals: S.deals, activities: S.activities });
+    S.deals = S.deals.filter(x => x.id !== d.id);
+    S.activities = S.activities.filter(a => a.dealId !== d.id);
+    closeDrawer(); commit();
+    toast('Affaire supprimée', () => {
+      const snap = JSON.parse(snapshot);
+      S.deals = snap.deals; S.activities = snap.activities;
+      commit();
+    });
+  };
+
+  /* ajout d'activité */
+  let actType = 'note';
+  $$('#dwActType button').forEach(b => b.onclick = () => {
+    actType = b.dataset.t;
+    $$('#dwActType button').forEach(x => x.classList.toggle('on', x === b));
+    $('#dwActText').focus();
+  });
+  $('#dwActText').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const text = e.target.value.trim();
+    if (!text) return;
+    addActivity({ dealId: d.id, contactId: d.contactId, type: actType, text });
+    commit(); openDealDrawer(d.id);
+    setTimeout(() => { const i = $('#dwActText'); if (i) i.focus(); }, 60);
+  });
+}
+
+function tlItem(a) {
+  return `
+    <div class="tl-item type-${esc(a.type)}">
+      <div class="tl-rail"><span class="p"></span><span class="l"></span></div>
+      <div class="tl-body">
+        <div class="tl-meta"><span>${esc(ACT_TYPES[a.type] || a.type)}</span><span>${fmtFull(a.at)} · ${dfTime.format(new Date(a.at))}</span></div>
+        <div class="tl-text">${esc(a.text)}</div>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   14. TIROIR CONTACT
+   ============================================================ */
+function openContactDrawer(contactId) {
+  const c = contactById(contactId);
+  if (!c) return;
+  const deals = dealsOfContact(c.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const open = deals.filter(d => d.status === 'open');
+  const acts = actsOfContact(c.id);
+  const inactive3y = !acts.length ? daysSince(c.createdAt) > 1095 : daysSince(acts[0].at) > 1095;
+
+  openDrawer(`
+    <div class="drawer-head">
+      <div style="flex:1;min-width:0">
+        <h2>${esc(c.name)}</h2>
+        <div class="sub">
+          ${c.company ? `<span>${esc(c.company)}</span>` : ''}
+          ${(c.tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join('')}
+          ${inactive3y ? '<span class="chip amber" title="Aucune interaction depuis plus de 3 ans — pensez à la purge RGPD (Réglages)">inactif 3 ans+</span>' : ''}
+        </div>
+      </div>
+      <button class="iconbtn" id="cwEdit" title="Modifier la fiche" aria-label="Modifier">✎</button>
+      <button class="iconbtn" id="cwClose" aria-label="Fermer">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-grid">
+        <div class="kv"><span class="k">Email</span><span class="v">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">—</span>'}</span></div>
+        <div class="kv"><span class="k">Téléphone</span><span class="v">${c.phone ? `<a href="tel:${esc(String(c.phone).replace(/\s/g, ''))}" class="mono" style="font-size:12.5px">${esc(fmtPhone(c.phone))}</a>` : '<span class="muted">—</span>'}</span></div>
+        ${c.siret ? `<div class="kv"><span class="k">SIRET</span><span class="v mono" style="font-size:12px">${esc(c.siret)}</span></div>` : ''}
+        ${c.tva ? `<div class="kv"><span class="k">TVA intra.</span><span class="v mono" style="font-size:12px">${esc(c.tva)}</span></div>` : ''}
+        <div class="kv"><span class="k">Fiche créée</span><span class="v">${relPast(c.createdAt)}</span></div>
+        <div class="kv"><span class="k">Dernier échange</span><span class="v">${acts.length ? relPast(acts[0].at) : 'jamais'}</span></div>
+        ${c.note ? `<div class="kv full"><span class="k">Notes</span><span class="v" style="white-space:pre-wrap">${esc(c.note)}</span></div>` : ''}
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-primary" id="cwNewDeal">+ Affaire pour ce contact</button>
+      </div>
+
+      <details class="fold" open>
+        <summary>Affaires <span class="muted mono" style="font-size:10px">(${deals.length})</span></summary>
+        <div class="fold-body" style="display:flex;flex-direction:column;gap:8px">
+          ${deals.map(d => {
+            const st = stageById(d.stageId);
+            const badge = d.status === 'won' ? '<span class="chip green">gagnée</span>' : d.status === 'lost' ? '<span class="chip">perdue</span>' : `<span class="chip">${st ? esc(st.name) : ''}</span>`;
+            return `<div class="task-row" data-deal="${d.id}" style="border:1px solid var(--hairline);border-radius:10px">
+              <div class="task-main"><div class="task-title"><span class="who">${esc(d.title)}</span></div>
+              <div class="task-sub">${badge}${d.next && d.status === 'open' ? '<span>→ ' + esc(ACTION_KINDS[d.next.kind] || '') + ' ' + relDay(d.next.date) + '</span>' : ''}</div></div>
+              <span class="money muted">${d.value ? fmtEUR(d.value) : ''}</span>
+            </div>`;
+          }).join('') || '<span class="muted" style="font-size:12px">Aucune affaire.</span>'}
+        </div>
+      </details>
+
+      <details class="fold" open>
+        <summary>Historique <span class="muted mono" style="font-size:10px">(${acts.length})</span></summary>
+        <div class="fold-body">
+          <div class="tl-add">
+            <input class="input" id="cwNote" placeholder="Ajouter une note… (Entrée)">
+          </div>
+          <div class="tl">${acts.slice(0, 40).map(tlItem).join('') || '<span class="muted" style="font-size:12px">Aucune activité.</span>'}</div>
+        </div>
+      </details>
+    </div>`);
+
+  $('#cwClose').onclick = () => closeDrawer();
+  $('#cwEdit').onclick = () => openContactModal(c.id);
+  $('#cwNewDeal').onclick = () => { closeDrawer(); openQuickAddForContact(c); };
+  $$('.drawer [data-deal]').forEach(row => row.onclick = () => openDealDrawer(row.dataset.deal));
+  $('#cwNote').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const text = e.target.value.trim();
+    if (!text) return;
+    addActivity({ contactId: c.id, type: 'note', text });
+    commit(); openContactDrawer(c.id);
+  });
+}
+
+function openQuickAddForContact(c) {
+  openQuickAdd();
+  const qc = $('#qContact');
+  if (qc) { qc.value = c.name; qc.dispatchEvent(new Event('input')); $('#qValue') && $('#qValue').focus(); }
+}
+
+/* ============================================================
+   15. EMAIL DE RELANCE — modèles + mailto + consignation
+   ============================================================ */
+function fillTemplate(str, d, c) {
+  const first = (c && c.name ? c.name.split(' ')[0] : '');
+  return String(str || '')
+    .replaceAll('{prenom}', first)
+    .replaceAll('{nom}', c ? c.name : '')
+    .replaceAll('{societe}', c && c.company ? c.company : 'votre entreprise')
+    .replaceAll('{montant}', d && d.value ? fmtEUR(d.value) : '');
+}
+function openEmailModal(d) {
+  const c = contactById(d.contactId);
+  if (!c || !c.email) return;
+  const tpls = S.settings.emailTemplates;
+  openModal(`
+    <div class="modal-head"><h2>Relancer ${esc(c.name)} par email</h2></div>
+    <div class="modal-body">
+      <div class="field"><label>Modèle</label>
+        <select class="select" id="emTpl">${tpls.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Objet</label><input class="input" id="emSubject"></div>
+      <div class="field"><label>Message</label><textarea class="textarea" id="emBody" rows="8"></textarea></div>
+      <span class="field-hint">S’ouvre dans votre logiciel email habituel. Rien n’est envoyé par Cadence.</span>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close>Annuler</button>
+      <button class="btn btn-primary" id="emSend">Ouvrir dans mon email</button>
+    </div>`);
+  const apply = () => {
+    const t = tpls[Number($('#emTpl').value)] || tpls[0];
+    $('#emSubject').value = fillTemplate(t.subject, d, c);
+    $('#emBody').value = fillTemplate(t.body, d, c);
+  };
+  apply();
+  $('#emTpl').onchange = apply;
+  $('#emSend').onclick = () => {
+    const subject = $('#emSubject').value, body = $('#emBody').value;
+    window.location.href = 'mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    addActivity({ dealId: d.id, contactId: c.id, type: 'email', text: 'Email de relance : ' + subject });
+    const delay = suggestedDelay(d);
+    d.next = { kind: 'relance', label: 'suite email', date: addDays(today(), delay) };
+    closeModal(); commit();
+    toast('Email consigné — prochaine relance ' + relDay(d.next.date));
+    openDealDrawer(d.id);
+  };
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   16. VUE STATISTIQUES — 6 tuiles fixes + 3 graphiques sobres
+   ============================================================ */
+function renderStats(view) {
+  const t = pipelineTotals();
+  const s = statsData();
+  const sleeping = sleepDeals().length;
+  const open = openDeals();
+
+  const deltaMonth = (() => {
+    if (!s.wonPrevMonth && !t.wonMonth) return '';
+    if (!s.wonPrevMonth) return '<span class="up">nouveau</span> vs mois dernier';
+    const pct = Math.round(100 * (t.wonMonth - s.wonPrevMonth) / s.wonPrevMonth);
+    if (pct === 0) return 'stable vs mois dernier';
+    return `<span class="${pct > 0 ? 'up' : 'down'}">${pct > 0 ? '+' : ''}${pct}&nbsp;%</span> vs mois dernier (${fmtEUR(s.wonPrevMonth)})`;
+  })();
+
+  view.innerHTML = `
+    <div class="stat-grid">
+      <div class="card stat-tile">
+        <span class="l">Pipeline pondéré</span>
+        <span class="v money">${fmtEUR(t.pond)}</span>
+        <span class="d">brut ${fmtEUR(t.brut)} · ${open.length} affaire${open.length > 1 ? 's' : ''} en cours</span>
+      </div>
+      <div class="card stat-tile">
+        <span class="l">Gagné ce mois</span>
+        <span class="v money">${fmtEUR(t.wonMonth)}</span>
+        <span class="d">${deltaMonth}</span>
+      </div>
+      <div class="card stat-tile">
+        <span class="l">Taux de transformation</span>
+        ${s.winRate != null
+          ? `<span class="v">${s.winRate}&nbsp;%</span><span class="d">${s.won.length} gagnée${s.won.length > 1 ? 's' : ''} / ${s.closed.length} closes</span>`
+          : `<span class="v small">Encore ${5 - s.closed.length} affaire${5 - s.closed.length > 1 ? 's' : ''} close${5 - s.closed.length > 1 ? 's' : ''}</span><span class="d">avant un taux fiable</span>`}
+      </div>
+      <div class="card stat-tile">
+        <span class="l">Panier moyen</span>
+        ${s.avgBasket != null
+          ? `<span class="v money">${fmtEUR(s.avgBasket)}</span><span class="d">sur ${s.won.length} affaires gagnées</span>`
+          : `<span class="v small">Encore ${Math.max(0, 3 - s.won.length)} affaire${3 - s.won.length > 1 ? 's' : ''} gagnée${3 - s.won.length > 1 ? 's' : ''}</span><span class="d">avant ce calcul</span>`}
+      </div>
+      <div class="card stat-tile">
+        <span class="l">Cycle de vente moyen</span>
+        ${s.avgCycle != null
+          ? `<span class="v">${s.avgCycle}&nbsp;j</span><span class="d">de la création à la signature</span>`
+          : `<span class="v small">Pas encore mesurable</span><span class="d">3 affaires gagnées minimum</span>`}
+      </div>
+      <div class="card stat-tile click" id="tileSleep">
+        <span class="l">Affaires dormantes</span>
+        <span class="v" style="${sleeping ? 'color:var(--amber)' : ''}">${sleeping}</span>
+        <span class="d">${sleeping ? 'sans activité depuis trop longtemps — cliquer pour voir' : 'tout le pipeline est actif'}</span>
+      </div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="card chart-card">
+        <h3>Entonnoir de conversion</h3>
+        <div class="sub">part des affaires ayant atteint chaque étape</div>
+        ${s.all >= 5 ? funnelChart(s) : `<div class="chart-empty">L’entonnoir apparaîtra à partir de 5 affaires créées.<br>Il vous dira où votre processus de vente fuit.</div>`}
+      </div>
+      <div class="card chart-card">
+        <h3>Chiffre d’affaires signé</h3>
+        <div class="sub">6 derniers mois, € HT</div>
+        ${s.won.length ? monthsChart(s) : `<div class="chart-empty">Votre première affaire gagnée démarrera cette courbe.</div>`}
+      </div>
+      <div class="card chart-card">
+        <h3>Raisons de perte</h3>
+        <div class="sub">pourquoi les affaires se perdent — 40 à 60 % des affaires B2B se perdent sans décision du client</div>
+        ${s.lost.length >= 3 ? lossChart(s) : `<div class="chart-empty">À partir de 3 affaires perdues, ce graphique vous dira contre quoi vous perdez vraiment.<br>(Indice du marché : plus souvent « pas de décision » qu’un concurrent.)</div>`}
+      </div>
+    </div>`;
+  $('#tileSleep').onclick = () => go('pipeline');
+  bindVizTips(view);
+}
+
+/* ---------- entonnoir : barres horizontales, rampe ordinale bleue ---------- */
+function funnelChart(s) {
+  const clip = n => n.length > 17 ? n.slice(0, 16) + '…' : n; // le nom complet reste dans l'infobulle et la table
+  const rows = s.funnel;
+  const max = Math.max(1, ...rows.map(r => r.n));
+  const W = 520, LBL = 130, BARMAX = W - LBL - 78, RH = 34;
+  const H = rows.length * RH + 6;
+  const ramps = ['var(--chart-o1)', 'var(--chart-o2)', 'var(--chart-o3)', 'var(--chart-o4)'];
+  const bars = rows.map((r, i) => {
+    const w = Math.max(2, Math.round(BARMAX * r.n / max));
+    const y = i * RH + 4;
+    const color = r.stage.id === '__won' ? 'var(--green)' : ramps[Math.min(i, ramps.length - 1)];
+    const pct = s.all ? Math.round(100 * r.n / s.all) : 0;
+    return `
+      <text x="${LBL - 8}" y="${y + 17}" text-anchor="end" font-size="11.5" fill="var(--ink-2)">${esc(clip(r.stage.name))}</text>
+      <rect x="${LBL}" y="${y}" width="${w}" height="22" rx="4" fill="${color}"
+        data-tip="${esc(r.stage.name)} — ${r.n} affaire${r.n > 1 ? 's' : ''} (${pct} %)"></rect>
+      <text x="${LBL + w + 8}" y="${y + 16}" font-size="11" fill="var(--ink-3)" style="font-family:var(--mono)">${r.n} · ${pct} %</text>`;
+  }).join('');
+  return `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Entonnoir de conversion par étape">${bars}</svg>
+    ${chartTable(['Étape', 'Affaires'], rows.map(r => [r.stage.name, String(r.n)]))}`;
+}
+
+/* ---------- CA par mois : colonnes fines, une seule série ---------- */
+function monthsChart(s) {
+  const W = 520, H = 190, PADL = 56, PADB = 26, PADT = 14;
+  const plotW = W - PADL - 12, plotH = H - PADT - PADB;
+  const max = Math.max(1, ...s.months.map(m => m.total));
+  const step = niceStep(max);
+  const top = Math.ceil(max / step) * step;
+  const band = plotW / s.months.length;
+  const bw = Math.min(24, band * .5);
+  const maxIdx = s.months.reduce((bi, m, i) => m.total > s.months[bi].total ? i : bi, 0);
+  const grid = [];
+  for (let v = 0; v <= top; v += step) {
+    const y = PADT + plotH - plotH * v / top;
+    grid.push(`<line x1="${PADL}" y1="${y}" x2="${W - 12}" y2="${y}" stroke="var(--hairline)" stroke-width="1"></line>
+      <text x="${PADL - 6}" y="${y + 3.5}" text-anchor="end" font-size="10" fill="var(--ink-3)" style="font-family:var(--mono)">${compactEUR(v)}</text>`);
+  }
+  const bars = s.months.map((m, i) => {
+    const h = Math.round(plotH * m.total / top);
+    const x = PADL + band * i + (band - bw) / 2;
+    const y = PADT + plotH - h;
+    const lbl = (m.total > 0 && (i === maxIdx || i === s.months.length - 1))
+      ? `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="10" fill="var(--ink-2)" style="font-family:var(--mono)">${compactEUR(m.total)}</text>` : '';
+    return `
+      <rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, m.total > 0 ? 2 : 0)}" rx="4" fill="var(--chart-1)"
+        data-tip="${esc(m.label)} — ${fmtEUR(m.total)}"></rect>${lbl}
+      <text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">${esc(m.label)}</text>`;
+  }).join('');
+  return `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chiffre d'affaires signé par mois">
+      ${grid.join('')}
+      <line x1="${PADL}" y1="${PADT + plotH}" x2="${W - 12}" y2="${PADT + plotH}" stroke="var(--hairline-2)" stroke-width="1"></line>
+      ${bars}
+    </svg>
+    ${chartTable(['Mois', 'CA signé'], s.months.map(m => [m.label, fmtEUR(m.total)]))}`;
+}
+function niceStep(max) {
+  const raw = max / 3;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 5, 10]) if (raw <= m * pow) return m * pow;
+  return 10 * pow;
+}
+function compactEUR(v) {
+  if (v >= 1e6) return (v / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' M€';
+  if (v >= 1000) return Math.round(v / 1000) + ' k€';
+  return Math.round(v) + ' €';
+}
+
+/* ---------- raisons de perte : barres horizontales, une série ---------- */
+function lossChart(s) {
+  const rows = s.lossList;
+  const max = Math.max(1, ...rows.map(r => r[1]));
+  const W = 520, LBL = 150, BARMAX = W - LBL - 70, RH = 30;
+  const H = rows.length * RH + 6;
+  const bars = rows.map(([reason, n], i) => {
+    const w = Math.max(2, Math.round(BARMAX * n / max));
+    const y = i * RH + 4;
+    const pct = Math.round(100 * n / s.lost.length);
+    return `
+      <text x="${LBL - 8}" y="${y + 15}" text-anchor="end" font-size="11.5" fill="var(--ink-2)">${esc(reason)}</text>
+      <rect x="${LBL}" y="${y}" width="${w}" height="18" rx="4" fill="var(--chart-1)" data-tip="${esc(reason)} — ${n} affaire${n > 1 ? 's' : ''} (${pct} %)"></rect>
+      <text x="${LBL + w + 8}" y="${y + 14}" font-size="11" fill="var(--ink-3)" style="font-family:var(--mono)">${n} · ${pct} %</text>`;
+  }).join('');
+  return `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Raisons de perte">${bars}</svg>
+    ${chartTable(['Raison', 'Affaires'], rows.map(([r, n]) => [r, String(n)]))}`;
+}
+
+function chartTable(headers, rows) {
+  return `
+    <details class="chart-table">
+      <summary>Voir les données</summary>
+      <table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r => `<tr>${r.map(v => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    </details>`;
+}
+
+/* tooltip de survol, jamais indispensable (table en dessous) */
+function bindVizTips(root) {
+  const tip = $('#vizTip');
+  $$('svg [data-tip]', root).forEach(el => {
+    el.addEventListener('pointerenter', () => { tip.textContent = el.dataset.tip; tip.style.display = 'block'; });
+    el.addEventListener('pointermove', e => {
+      const pad = 12;
+      tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + pad) + 'px';
+      tip.style.top = (e.clientY - tip.offsetHeight - 10 < 8 ? e.clientY + pad : e.clientY - tip.offsetHeight - 10) + 'px';
+    });
+    el.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+  });
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   17. RÉGLAGES
+   ============================================================ */
+function renderSettings(view) {
+  const st = S.settings;
+  view.innerHTML = `
+    <div class="settings-grid">
+
+      <div class="card card-pad setting-card">
+        <h3>Étapes du pipeline</h3>
+        <p class="desc">Chaque étape porte une <b>probabilité</b> (pour le pipeline pondéré) et un <b>seuil de dormance</b> en jours :
+        au-delà, sans activité, l’affaire est signalée « dormante » — sauf si une action est déjà planifiée à moins de 7 jours.</p>
+        <div class="stage-head-row"><span class="grow">Nom</span><span class="w74">Proba %</span><span class="w74">Dort à (j)</span><span style="width:60px"></span></div>
+        <div id="stageRows">
+          ${st.stages.map((s, i) => `
+            <div class="stage-row" data-i="${i}">
+              <input class="input" data-f="name" value="${esc(s.name)}">
+              <input class="input pct" data-f="prob" type="number" min="0" max="100" value="${s.prob}">
+              <input class="input days" data-f="rot" type="number" min="0" max="365" value="${s.rot || 0}" title="0 = jamais">
+              <button class="iconbtn" data-up="${i}" title="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button class="iconbtn" data-del="${i}" title="Supprimer l’étape">✕</button>
+            </div>`).join('')}
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-sm" id="stageAdd">+ Étape</button>
+          <button class="btn btn-sm btn-primary" id="stageSave">Enregistrer les étapes</button>
+        </div>
+      </div>
+
+      <div class="card card-pad setting-card">
+        <h3>Cadence de relance des devis</h3>
+        <p class="desc">Un devis relancé à J+3, J+7 puis J+14 se signe deux à trois fois plus souvent qu’un devis
+        laissé sans suite. Ces délais pré-remplissent la relance suggérée à l’étape « Devis envoyé ».</p>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${(st.quoteCadence || [3, 7, 14]).map((v, i) => `<span class="mono" style="font-size:12px">J+</span><input class="input days" style="width:64px" data-cad="${i}" type="number" min="1" max="90" value="${v}">`).join('')}
+          <button class="btn btn-sm" id="cadSave">Enregistrer</button>
+        </div>
+      </div>
+
+      <div class="card card-pad setting-card">
+        <h3>Modèles d’email</h3>
+        <p class="desc">Variables disponibles : <span class="tpl-vars">{prenom} {nom} {societe} {montant}</span>.
+        Les emails s’ouvrent dans votre logiciel habituel — Cadence n’envoie rien.</p>
+        <div id="tplRows">
+          ${st.emailTemplates.map((t, i) => `
+            <div class="stage-row">
+              <span style="flex:1">${esc(t.name)}</span>
+              <span class="muted" style="font-size:11.5px;flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.subject)}</span>
+              <button class="btn btn-xs" data-tpl-edit="${i}">Modifier</button>
+              <button class="iconbtn" data-tpl-del="${i}">✕</button>
+            </div>`).join('')}
+        </div>
+        <div class="btn-row" style="margin-top:10px"><button class="btn btn-sm" id="tplAdd">+ Modèle</button></div>
+      </div>
+
+      <div class="card card-pad setting-card">
+        <h3>Sauvegarde &amp; données</h3>
+        <p class="desc">Vos données vivent uniquement dans ce navigateur (localStorage). C’est ce qui garantit
+        la confidentialité — et c’est aussi pourquoi la sauvegarde régulière n’est pas optionnelle.
+        Dernière sauvegarde : <b>${relPast(S.meta.lastBackupAt)}</b>.</p>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="dExport">Exporter la sauvegarde (.json)</button>
+          <button class="btn" id="dImport">Restaurer une sauvegarde</button>
+          <button class="btn" id="dCsvC">Contacts .csv</button>
+          <button class="btn" id="dCsvA">Affaires .csv</button>
+          <button class="btn" id="dCsvImport">Importer des contacts (CSV / Excel)</button>
+          <button class="btn" id="dIcs">Relances → agenda (.ics)</button>
+        </div>
+      </div>
+
+      <div class="card card-pad setting-card">
+        <h3>RGPD — droit à l’oubli</h3>
+        <p class="desc">La CNIL demande la suppression des prospects inactifs depuis plus de 3 ans.
+        Cadence les détecte ; la suppression reste votre décision, fiche par fiche.</p>
+        <div class="btn-row"><button class="btn" id="dRgpd">Vérifier les contacts inactifs (3 ans+)</button></div>
+      </div>
+
+      <div class="card card-pad setting-card">
+        <h3>À propos — et limites honnêtes</h3>
+        <p class="desc">
+          Cadence est un CRM <b>mono-utilisateur, mono-appareil</b> : un fichier HTML, zéro serveur, zéro compte,
+          zéro dépendance. Vos données ne quittent jamais ce navigateur — conformité RGPD par conception, aucun sous-traitant.<br><br>
+          En contrepartie : pas de synchronisation entre appareils (passez par export/import),
+          pas de notification quand le fichier est fermé (exportez vos relances en .ics, épinglez l’onglet),
+          et les données sont en clair sur ce poste — pas de CRM client sur un ordinateur partagé.<br><br>
+          <span class="mono" style="font-size:11px">Raccourcis : Ctrl+K recherche &amp; commandes · N nouvelle affaire · C nouveau contact · G puis A/P/C/S naviguer</span>
+        </p>
+        <div class="btn-row">
+          <button class="btn" id="dDemo">${S.meta.demo ? 'Régénérer les données de démonstration' : 'Charger des données de démonstration'}</button>
+          <button class="btn btn-danger" id="dWipe">Tout effacer</button>
+        </div>
+      </div>
+    </div>`;
+
+  /* --- étapes --- */
+  $('#stageSave').onclick = () => {
+    const rows = $$('#stageRows .stage-row');
+    const next = rows.map(r => {
+      const i = Number(r.dataset.i);
+      const old = st.stages[i] || { id: uid() };
+      return {
+        id: old.id,
+        name: $('[data-f="name"]', r).value.trim() || 'Étape',
+        prob: Math.max(0, Math.min(100, Number($('[data-f="prob"]', r).value) || 0)),
+        rot: Math.max(0, Number($('[data-f="rot"]', r).value) || 0),
+      };
+    });
+    st.stages = next;
+    commit(); toast('Pipeline mis à jour');
+  };
+  $('#stageAdd').onclick = () => {
+    st.stages.push({ id: uid(), name: 'Nouvelle étape', prob: 50, rot: 14 });
+    commit();
+  };
+  $$('#stageRows [data-del]').forEach(b => b.onclick = () => {
+    if (st.stages.length <= 1) { toast('Impossible de supprimer la dernière étape'); return; }
+    const i = Number(b.dataset.del);
+    const stage = st.stages[i];
+    const used = S.deals.filter(d => d.stageId === stage.id && d.status === 'open').length;
+    if (used) { toast(used + ' affaire(s) en cours sur cette étape — déplacez-les d’abord'); return; }
+    st.stages.splice(i, 1);
+    commit();
+  });
+  $$('#stageRows [data-up]').forEach(b => b.onclick = () => {
+    const i = Number(b.dataset.up);
+    if (i > 0) { [st.stages[i - 1], st.stages[i]] = [st.stages[i], st.stages[i - 1]]; commit(); }
+  });
+
+  /* --- cadence devis --- */
+  $('#cadSave').onclick = () => {
+    st.quoteCadence = $$('[data-cad]').map(i => Math.max(1, Number(i.value) || 3));
+    commit(); toast('Cadence enregistrée');
+  };
+
+  /* --- modèles --- */
+  $('#tplAdd').onclick = () => openTemplateModal(null);
+  $$('[data-tpl-edit]').forEach(b => b.onclick = () => openTemplateModal(Number(b.dataset.tplEdit)));
+  $$('[data-tpl-del]').forEach(b => b.onclick = () => { st.emailTemplates.splice(Number(b.dataset.tplDel), 1); commit(); });
+
+  /* --- données --- */
+  $('#dExport').onclick = exportBackup;
+  $('#dImport').onclick = importBackup;
+  $('#dCsvC').onclick = () => exportContactsCSV();
+  $('#dCsvA').onclick = exportDealsCSV;
+  $('#dCsvImport').onclick = openCsvImport;
+  $('#dIcs').onclick = exportICS;
+  $('#dRgpd').onclick = openRgpdModal;
+  $('#dDemo').onclick = () => {
+    if (S.contacts.length && !S.meta.demo) {
+      openModal(`
+        <div class="modal-head"><h2>Remplacer par la démonstration ?</h2></div>
+        <div class="modal-body"><p style="margin:0">Vos ${S.contacts.length} contacts et ${S.deals.length} affaires seront remplacés par des données fictives. Exportez d’abord une sauvegarde.</p></div>
+        <div class="modal-foot"><button class="btn" data-close>Annuler</button><button class="btn btn-danger" id="demoOk">Remplacer</button></div>`);
+      $('#demoOk').onclick = () => { closeModal(); seedDemo(); commit(); toast('Données de démonstration chargées'); };
+    } else { seedDemo(); commit(); toast('Données de démonstration chargées'); }
+  };
+  $('#dWipe').onclick = () => {
+    openModal(`
+      <div class="modal-head"><h2>Tout effacer ?</h2></div>
+      <div class="modal-body"><p style="margin:0">Suppression définitive de ${S.contacts.length} contacts, ${S.deals.length} affaires et ${S.activities.length} activités de ce navigateur. Aucun retour en arrière sans sauvegarde .json.</p></div>
+      <div class="modal-foot"><button class="btn" data-close>Annuler</button><button class="btn btn-danger" id="wipeOk">Effacer définitivement</button></div>`);
+    $('#wipeOk').onclick = () => { S = emptyState(); closeModal(); commit(); toast('Données effacées'); };
+  };
+}
+
+function openTemplateModal(idx) {
+  const t = idx != null ? S.settings.emailTemplates[idx] : { name: '', subject: '', body: '' };
+  openModal(`
+    <div class="modal-head"><h2>${idx != null ? 'Modifier le modèle' : 'Nouveau modèle'}</h2></div>
+    <div class="modal-body">
+      <div class="field"><label>Nom</label><input class="input" id="tName" value="${esc(t.name)}" placeholder="Relance devis"></div>
+      <div class="field"><label>Objet</label><input class="input" id="tSubject" value="${esc(t.subject)}"></div>
+      <div class="field"><label>Message</label><textarea class="textarea" id="tBody" rows="8">${esc(t.body)}</textarea>
+      <span class="field-hint tpl-vars">{prenom} {nom} {societe} {montant}</span></div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close>Annuler</button><button class="btn btn-primary" id="tSave">Enregistrer</button></div>`);
+  $('#tSave').onclick = () => {
+    const data = { id: t.id || uid(), name: $('#tName').value.trim() || 'Modèle', subject: $('#tSubject').value, body: $('#tBody').value };
+    if (idx != null) S.settings.emailTemplates[idx] = data;
+    else S.settings.emailTemplates.push(data);
+    closeModal(); commit();
+  };
+}
+
+/* ============================================================
+   18. RGPD — détection des inactifs 3 ans+
+   ============================================================ */
+function openRgpdModal() {
+  const limit = 1095;
+  const stale = S.contacts.filter(c => {
+    const acts = actsOfContact(c.id);
+    const lastTs = acts.length ? acts[0].at : c.createdAt;
+    const hasOpen = dealsOfContact(c.id).some(d => d.status === 'open');
+    return !hasOpen && daysSince(lastTs) > limit;
+  });
+  openModal(`
+    <div class="modal-head"><h2>Contacts inactifs depuis 3 ans+</h2></div>
+    <div class="modal-body">
+      ${stale.length ? `
+        <p style="margin:0;font-size:13px" class="muted">${stale.length} contact(s) sans aucune interaction depuis plus de 3 ans et sans affaire en cours.
+        La CNIL recommande leur suppression ou anonymisation.</p>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--hairline);border-radius:10px">
+          ${stale.map(c => `
+            <label style="display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--hairline);cursor:pointer">
+              <input type="checkbox" data-rgpd="${c.id}" checked style="accent-color:var(--ink)">
+              <span style="flex:1">${esc(c.name)}${c.company ? ' · ' + esc(c.company) : ''}</span>
+              <span class="muted mono" style="font-size:10.5px">${relPast(actsOfContact(c.id)[0] ? actsOfContact(c.id)[0].at : c.createdAt)}</span>
+            </label>`).join('')}
+        </div>` : `<p style="margin:0">Aucun contact inactif depuis plus de 3 ans. Votre base est propre.</p>`}
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close>Fermer</button>
+      ${stale.length ? '<button class="btn btn-danger" id="rgpdPurge">Supprimer la sélection</button>' : ''}
+    </div>`);
+  const purge = $('#rgpdPurge');
+  if (purge) purge.onclick = () => {
+    const ids = $$('[data-rgpd]:checked').map(x => x.dataset.rgpd);
+    const snapshot = JSON.stringify({ contacts: S.contacts, deals: S.deals, activities: S.activities });
+    ids.forEach(removeContactCascade);
+    closeModal(); commit();
+    toast(ids.length + ' contact(s) purgé(s) — RGPD', () => {
+      const snap = JSON.parse(snapshot);
+      S.contacts = snap.contacts; S.deals = snap.deals; S.activities = snap.activities;
+      commit();
+    });
+  };
+}
+
+/* ============================================================
+   19. SAUVEGARDE JSON / EXPORTS CSV / ICS
+   ============================================================ */
+function exportBackup() {
+  S.meta.lastBackupAt = new Date().toISOString();
+  persist();
+  download('cadence-sauvegarde-' + today() + '.json', JSON.stringify(S, null, 1), 'application/json');
+  render();
+  toast('Sauvegarde exportée — gardez-la en lieu sûr');
+}
+function importBackup() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json,application/json';
+  input.onchange = () => {
+    const f = input.files[0];
+    if (!f) return;
+    f.text().then(txt => {
+      try {
+        const raw = JSON.parse(txt);
+        validateState(raw);
+        const incoming = migrate(raw);
+        openModal(`
+          <div class="modal-head"><h2>Restaurer cette sauvegarde ?</h2></div>
+          <div class="modal-body"><p style="margin:0">${incoming.contacts.length} contacts · ${incoming.deals.length} affaires · ${incoming.activities.length} activités.
+          <br>Les données actuelles (${S.contacts.length} contacts, ${S.deals.length} affaires) seront remplacées.</p></div>
+          <div class="modal-foot"><button class="btn" data-close>Annuler</button><button class="btn btn-primary" id="restOk">Restaurer</button></div>`);
+        $('#restOk').onclick = () => { S = incoming; closeModal(); commit(); toast('Sauvegarde restaurée'); };
+      } catch (e) { toast('Fichier invalide : ' + e.message, null, 6000); }
+    });
+  };
+  input.click();
+}
+
+/* CSV : point-virgule + BOM = ouverture directe dans Excel FR sans rien casser */
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t]/.test(s) && !/^-?\d+([.,]\d+)?( \u20ac)?$/.test(s)) s = "'" + s; // anti-injection de formules
+  return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvOf(rows) { return '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n'); }
+
+function exportContactsCSV(onlyIds) {
+  const list = onlyIds ? S.contacts.filter(c => onlyIds.includes(c.id)) : S.contacts;
+  const rows = [['Nom', 'Société', 'Email', 'Téléphone', 'Tags', 'SIRET', 'TVA', 'Notes', 'Fiche créée']];
+  list.forEach(c => rows.push([c.name, c.company || '', c.email || '', fmtPhone(c.phone), (c.tags || []).join(', '), c.siret || '', c.tva || '', c.note || '', String(c.createdAt).slice(0, 10)]));
+  download('cadence-contacts-' + today() + '.csv', csvOf(rows), 'text/csv;charset=utf-8');
+  toast(list.length + ' contact(s) exporté(s) — réversibilité totale');
+}
+function exportDealsCSV() {
+  const rows = [['Intitulé', 'Contact', 'Société', 'Montant HT', 'Étape', 'Statut', 'Probabilité %', 'Pondéré', 'Créée le', 'Close le', 'Raison de perte', 'Prochaine action', 'Date action']];
+  S.deals.forEach(d => {
+    const c = contactById(d.contactId) || {};
+    const st = stageById(d.stageId) || {};
+    rows.push([d.title, c.name || '', c.company || '', Number(d.value) || 0,
+      st.name || '', d.status === 'open' ? 'En cours' : d.status === 'won' ? 'Gagnée' : 'Perdue',
+      dealProb(d), Math.round(dealWeighted(d)),
+      String(d.createdAt).slice(0, 10), d.closedAt ? String(d.closedAt).slice(0, 10) : '',
+      d.lostReason || '', d.next ? (ACTION_KINDS[d.next.kind] || '') : '', d.next ? d.next.date : '']);
+  });
+  download('cadence-affaires-' + today() + '.csv', csvOf(rows), 'text/csv;charset=utf-8');
+  toast(S.deals.length + ' affaire(s) exportée(s)');
+}
+
+/* .ics : les relances dans votre vrai agenda — le rappel que le fichier fermé ne peut pas donner */
+function exportICS() {
+  const deals = openDeals().filter(d => d.next && d.next.date);
+  if (!deals.length) { toast('Aucune relance planifiée à exporter'); return; }
+  const stamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cadence CRM//FR', 'CALSCALE:GREGORIAN'];
+  deals.forEach(d => {
+    const c = contactById(d.contactId) || {};
+    const dt = d.next.date.replace(/-/g, '');
+    const title = (ACTION_KINDS[d.next.kind] || 'Relance') + ' : ' + (c.name || '') + (c.company ? ' (' + c.company + ')' : '') + ' — ' + d.title;
+    lines.push('BEGIN:VEVENT',
+      'UID:' + d.id + '@cadence-crm',
+      'DTSTAMP:' + stamp,
+      'DTSTART;VALUE=DATE:' + dt,
+      'SUMMARY:' + title.replace(/[\n,;]/g, ' '),
+      d.value ? 'DESCRIPTION:Montant estimé ' + Math.round(d.value) + ' EUR HT' : 'DESCRIPTION:Cadence CRM',
+      'END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  download('cadence-relances-' + today() + '.ics', lines.join('\r\n'), 'text/calendar');
+  toast(deals.length + ' relance(s) exportée(s) vers votre agenda');
+}
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   20. IMPORT CSV / EXCEL — le moment critique de la migration
+   Encodage détecté, colonnes devinées, prévisualisation obligatoire.
+   ============================================================ */
+const CSV_FIELDS = { '': 'Ignorer', name: 'Nom', company: 'Société', email: 'Email', phone: 'Téléphone', tags: 'Tags', note: 'Notes', siret: 'SIRET', tva: 'TVA' };
+
+function sniffDelimiter(text) {
+  const line = text.split(/\r?\n/).find(l => l.trim()) || '';
+  const counts = { '\t': (line.match(/\t/g) || []).length, ';': (line.match(/;/g) || []).length, ',': (line.match(/,/g) || []).length };
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][1] > 0 ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] : ';';
+}
+function parseCSV(text, delim) {
+  const rows = [];
+  let row = [], cell = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(c => c.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some(c => c.trim() !== '')) rows.push(row);
+  return rows;
+}
+function guessField(header) {
+  const h = norm(header);
+  if (/^(nom|name|contact|prenom nom|full ?name)/.test(h)) return 'name';
+  if (/(societe|company|entreprise|organisation|structure|raison sociale)/.test(h)) return 'company';
+  if (/(mail|courriel)/.test(h)) return 'email';
+  if (/(tel|phone|portable|mobile|fixe)/.test(h)) return 'phone';
+  if (/(tag|groupe|categorie|type|segment|statut)/.test(h)) return 'tags';
+  if (/siret|siren/.test(h)) return 'siret';
+  if (/tva|vat/.test(h)) return 'tva';
+  if (/(note|comment|remarque|observation)/.test(h)) return 'note';
+  return '';
+}
+function cleanPhone(v) {
+  let s = String(v || '').trim().replace(/^="?|"$/g, '');
+  const digits = s.replace(/[^\d+]/g, '');
+  if (/^[36-7]\d{8}$/.test(digits) && digits.length === 9) s = '0' + digits; // zéro initial mangé par Excel
+  else if (/^\d{9}$/.test(digits) && !digits.startsWith('0')) s = '0' + digits;
+  return fmtPhone(s) || s;
+}
+
+function openCsvImport() {
+  openModal(`
+    <div class="modal-head"><h2>Importer des contacts</h2></div>
+    <div class="modal-body">
+      <p class="desc" style="margin:0;font-size:12.5px;color:var(--ink-2)">Depuis Excel ou Google Sheets : sélectionnez vos colonnes (avec la ligne d’en-têtes), copiez, collez ci-dessous.
+      Ou chargez un fichier .csv. Rien n’est importé sans votre validation.</p>
+      <textarea class="textarea mono" id="csvPaste" rows="6" placeholder="Collez ici depuis Excel / Sheets…&#10;Nom	Société	Email	Téléphone&#10;Marie Lefort	Atelier Lefort	marie@atelier.fr	06 12 34 56 78" style="font-size:11.5px"></textarea>
+      <div class="btn-row"><label class="btn btn-sm" style="cursor:pointer">Choisir un fichier .csv<input type="file" id="csvFile" accept=".csv,.txt,text/csv" hidden></label></div>
+      <div id="csvZone"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close>Annuler</button>
+      <button class="btn btn-primary" id="csvGo" disabled>Importer</button>
+    </div>`);
+  $('#modalRoot').classList.add('lg');
+
+  let parsed = null, mapping = [];
+
+  const analyze = text => {
+    if (!text || !text.trim()) return;
+    const delim = sniffDelimiter(text);
+    const rows = parseCSV(text, delim);
+    if (!rows.length) return;
+    const headers = rows[0];
+    // Ligne d'en-têtes ? Si la 1re ligne contient un email, c'est déjà des données.
+    const headerish = !headers.some(h => /\S+@\S+\.\S+/.test(h));
+    parsed = { headers: headerish ? headers : headers.map((_, i) => 'Colonne ' + (i + 1)), rows: headerish ? rows.slice(1) : rows };
+    mapping = parsed.headers.map(guessField);
+    if (!mapping.includes('name')) { const i = mapping.findIndex(m => !m); if (i >= 0) mapping[i] = 'name'; }
+    renderPreview();
+  };
+
+  const renderPreview = () => {
+    if (!parsed) return;
+    const dupes = countDupes();
+    $('#csvZone').innerHTML = `
+      <div class="csv-stats">
+        <span><b>${parsed.rows.length}</b> ligne(s) détectée(s)</span>
+        <span>${dupes} doublon(s) probable(s) — ignoré(s) à l’import</span>
+      </div>
+      <div class="csv-preview">
+        <table>
+          <thead><tr>${parsed.headers.map((h, i) => `
+            <th>${esc(h)}<select data-map="${i}">${Object.entries(CSV_FIELDS).map(([k, v]) => `<option value="${k}" ${mapping[i] === k ? 'selected' : ''}>${v}</option>`).join('')}</select></th>`).join('')}
+          </tr></thead>
+          <tbody>${parsed.rows.slice(0, 8).map(r => `<tr>${parsed.headers.map((_, i) => `<td>${esc(r[i] || '')}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>
+      ${parsed.rows.length > 8 ? `<span class="muted" style="font-size:11px">Aperçu des 8 premières lignes sur ${parsed.rows.length}.</span>` : ''}`;
+    $$('#csvZone [data-map]').forEach(sel => sel.onchange = () => { mapping[Number(sel.dataset.map)] = sel.value; renderPreview(); });
+    $('#csvGo').disabled = !mapping.includes('name');
+  };
+
+  const rowToContact = r => {
+    const c = { id: uid(), name: '', company: '', email: '', phone: '', tags: [], note: '', siret: '', tva: '', createdAt: new Date().toISOString() };
+    mapping.forEach((f, i) => {
+      if (!f) return;
+      const v = String(r[i] || '').trim();
+      if (!v) return;
+      if (f === 'tags') c.tags = v.split(/[,;|]/).map(x => x.trim()).filter(Boolean);
+      else if (f === 'phone') c.phone = cleanPhone(v);
+      else if (f === 'note') c.note = c.note ? c.note + '\n' + v : v;
+      else c[f] = v;
+    });
+    return c;
+  };
+  const countDupes = () => parsed.rows.reduce((n, r) => { const c = rowToContact(r); return n + (c.name && findDuplicate(c, null) ? 1 : 0); }, 0);
+
+  $('#csvPaste').addEventListener('input', debounce(e => analyze(e.target.value), 250));
+  $('#csvFile').addEventListener('change', () => {
+    const f = $('#csvFile').files[0];
+    if (!f) return;
+    f.arrayBuffer().then(buf => {
+      let text;
+      try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+      catch (_) { text = new TextDecoder('windows-1252').decode(buf); } // vieux exports Excel FR
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      analyze(text);
+    });
+  });
+
+  $('#csvGo').onclick = () => {
+    if (!parsed || !mapping.includes('name')) return;
+    let added = 0, skippedDup = 0, skippedEmpty = 0;
+    parsed.rows.forEach(r => {
+      const c = rowToContact(r);
+      if (!c.name) { skippedEmpty++; return; }
+      if (findDuplicate(c, null)) { skippedDup++; return; }
+      S.contacts.push(c);
+      added++;
+    });
+    S.meta.onboarded = true;
+    $('#modalRoot').classList.remove('lg');
+    closeModal(); commit();
+    toast(added + ' contact(s) importé(s)' + (skippedDup ? ' · ' + skippedDup + ' doublon(s) ignoré(s)' : '') + (skippedEmpty ? ' · ' + skippedEmpty + ' sans nom' : ''));
+    go('contacts');
+  };
+}
+
+/* ============================================================
+   21. PALETTE Ctrl+K — recherche & commandes, 100 % clavier
+   ============================================================ */
+let palOpen = false;
+function openPalette() {
+  if (palOpen) return;
+  palOpen = true;
+  const root = $('#overlayRoot');
+  root.insertAdjacentHTML('beforeend', `
+    <div class="palette-veil" id="palVeil"></div>
+    <div class="palette" id="palEl" role="dialog" aria-label="Recherche et commandes">
+      <input id="palInput" role="combobox" aria-expanded="true" aria-controls="palList" aria-autocomplete="list" aria-label="Rechercher un contact, une affaire, une note ou une commande" placeholder="Contact, affaire, note, commande…" autocomplete="off" spellcheck="false">
+      <div class="palette-list" id="palList" role="listbox"></div>
+      <div class="pal-foot"><span>↑↓ naviguer</span><span>Entrée ouvrir</span><span>Échap fermer</span></div>
+    </div>`);
+  const input = $('#palInput'), list = $('#palList');
+  let items = [], sel = 0;
+
+  const actions = [
+    { label: 'Nouvelle affaire', hint: 'N', run: () => openQuickAdd() },
+    { label: 'Nouveau contact', hint: 'C', run: () => openContactModal() },
+    { label: "Aller à : Aujourd'hui", hint: 'G A', run: () => go('aujourdhui') },
+    { label: 'Aller à : Pipeline', hint: 'G P', run: () => go('pipeline') },
+    { label: 'Aller à : Contacts', hint: 'G C', run: () => go('contacts') },
+    { label: 'Aller à : Statistiques', hint: 'G S', run: () => go('stats') },
+    { label: 'Aller à : Réglages', hint: 'G R', run: () => go('reglages') },
+    { label: 'Exporter la sauvegarde (.json)', hint: '', run: exportBackup },
+    { label: 'Exporter les relances (.ics)', hint: '', run: exportICS },
+    { label: 'Basculer clair / sombre', hint: '', run: toggleTheme },
+  ];
+
+  const buildResults = q => {
+    const nq = norm(q.trim());
+    const out = [];
+    const push = (group, item) => out.push(Object.assign({ group }, item));
+    if (nq) {
+      const score = s => norm(s).startsWith(nq) ? 0 : 1;
+      S.contacts
+        .filter(c => norm(c.name + ' ' + (c.company || '') + ' ' + (c.email || '') + ' ' + (c.phone || '')).includes(nq))
+        .sort((a, b) => score(a.name) - score(b.name)).slice(0, 6)
+        .forEach(c => push('Contacts', { label: c.name + (c.company ? ' · ' + c.company : ''), run: () => openContactDrawer(c.id) }));
+      S.deals
+        .filter(d => { const c = contactById(d.contactId); return norm(d.title + ' ' + (c ? c.name + ' ' + (c.company || '') : '')).includes(nq); })
+        .sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1)).slice(0, 6)
+        .forEach(d => { const c = contactById(d.contactId); push('Affaires', { label: d.title + (c ? ' — ' + c.name : ''), money: d.value ? fmtEUR(d.value) : '', dim: d.status !== 'open', run: () => openDealDrawer(d.id) }); });
+      S.activities
+        .filter(a => a.type !== 'systeme' && a.type !== 'etape' && norm(a.text).includes(nq)).slice(0, 4)
+        .forEach(a => push('Notes', {
+          label: a.text.length > 70 ? a.text.slice(0, 70) + '…' : a.text,
+          run: () => a.dealId ? openDealDrawer(a.dealId) : openContactDrawer(a.contactId),
+        }));
+      actions.filter(a => norm(a.label).includes(nq)).forEach(a => push('Commandes', a));
+    } else {
+      lateDeals().slice(0, 4).forEach(d => { const c = contactById(d.contactId); push('En retard', { label: (c ? c.name + ' — ' : '') + d.title, money: 'J+' + (-daysFromToday(d.next.date)), run: () => openDealDrawer(d.id) }); });
+      actions.forEach(a => push('Commandes', a));
+    }
+    return out;
+  };
+
+  const renderList = () => {
+    if (!items.length) { list.innerHTML = '<div class="pal-empty">Aucun résultat. Essayez un nom, une société, un mot d’une note.</div>'; return; }
+    let html = '', lastGroup = null;
+    items.forEach((it, i) => {
+      if (it.group !== lastGroup) { html += `<div class="pal-group" role="presentation">${esc(it.group)}</div>`; lastGroup = it.group; }
+      html += `<div class="pal-item ${i === sel ? 'sel' : ''}" id="pal-opt-${i}" role="option" aria-selected="${i === sel}" data-i="${i}">
+        <span class="t" ${it.dim ? 'style="opacity:.55"' : ''}>${esc(it.label)}</span>
+        ${it.money ? `<span class="money muted">${esc(it.money)}</span>` : ''}
+        ${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ''}
+      </div>`;
+    });
+    list.innerHTML = html;
+    $$('.pal-item', list).forEach(el => {
+      el.onclick = () => pick(Number(el.dataset.i));
+      el.onmousemove = () => { sel = Number(el.dataset.i); $$('.pal-item', list).forEach(x => x.classList.toggle('sel', x === el)); };
+    });
+    const selEl = $('.pal-item.sel', list);
+    if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+    input.setAttribute('aria-activedescendant', items.length ? 'pal-opt-' + sel : '');
+  };
+  const refresh = () => { items = buildResults(input.value); sel = 0; renderList(); };
+  const pick = i => { const it = items[i]; if (!it) return; closePalette(); it.run(); };
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(items.length - 1, sel + 1); renderList(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, sel - 1); renderList(); }
+    else if (e.key === 'Enter') { e.preventDefault(); pick(sel); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+  });
+  $('#palVeil').onclick = closePalette;
+  refresh();
+  input.focus();
+}
+function closePalette() {
+  palOpen = false;
+  const v = $('#palVeil'), p = $('#palEl');
+  v && v.remove(); p && p.remove();
+}
+
+/* ============================================================
+   22. TOASTS (avec annulation)
+   ============================================================ */
+function toast(msg, undo, ms = 4200) {
+  const box = $('#toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button>Annuler</button>' : ''}`;
+  box.appendChild(el);
+  if (undo) $('button', el).onclick = () => { undo(); el.remove(); };
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 260); }, ms);
+}
+
+/* ============================================================
+   23. THÈME & RACCOURCIS CLAVIER
+   ============================================================ */
+function applyTheme() {
+  const pref = S.settings.theme || 'auto';
+  const dark = pref === 'dark' || (pref === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+}
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme === 'dark';
+  S.settings.theme = cur ? 'light' : 'dark';
+  persist();
+  applyTheme();
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+let gPending = false, gTimer = null;
+document.addEventListener('keydown', e => {
+  if ($('#modalRoot').open) return; // le dialog natif gère Échap ; aucun raccourci sous une modale
+  const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); palOpen ? closePalette() : openPalette(); return; }
+  if (inField) return;
+  if (e.key === 'Escape') {
+    if (palOpen) { closePalette(); return; }
+    if (drawerOpen) { closeDrawer(); return; }
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (gPending) {
+    gPending = false; clearTimeout(gTimer);
+    const map = { a: 'aujourdhui', p: 'pipeline', c: 'contacts', s: 'stats', r: 'reglages' };
+    if (map[k]) { e.preventDefault(); go(map[k]); }
+    return;
+  }
+  if (k === 'g') { gPending = true; gTimer = setTimeout(() => gPending = false, 900); return; }
+  if (k === '/') { e.preventDefault(); openPalette(); return; }
+  if (k === 'n') { e.preventDefault(); openQuickAdd(); return; }
+  if (k === 'c') { e.preventDefault(); openContactModal(); return; }
+});
+</script>
+
+<script>
+'use strict';
+
+/* ============================================================
+   24. DONNÉES DE DÉMONSTRATION — PME françaises plausibles
+   ============================================================ */
+function seedDemo() {
+  const base = emptyState();
+  base.meta.demo = true;
+  base.meta.onboarded = true;
+  base.meta.createdAt = new Date(Date.now() - 120 * 864e5).toISOString();
+
+  const ts = (daysAgo, h = 10) => { const d = new Date(); d.setDate(d.getDate() - daysAgo); d.setHours(h, 12 + (daysAgo % 37), 0, 0); return d.toISOString(); };
+  const day = delta => addDays(today(), delta);
+
+  const C = (name, company, email, phone, tags, extra = {}) =>
+    Object.assign({ id: uid(), name, company, email, phone, tags, note: '', siret: '', tva: '', createdAt: ts(90 + Math.floor(Math.random() * 0)) }, extra);
+
+  const contacts = [
+    C('Marie Lefort', 'Atelier Lefort', 'marie@atelierlefort.fr', '06 12 45 78 90', ['prospect']),
+    C('Karim Bensaïd', 'Menuiserie Bensaïd', 'contact@menuiserie-bensaid.fr', '06 84 22 15 30', ['prospect'], { siret: '84239176500018' }),
+    C('Sophie Vernet', 'Cabinet Vernet Avocats', 's.vernet@vernet-avocats.fr', '01 42 76 88 13', ['client']),
+    C('Julien Roux', 'Hôtel Le Beffroi', 'direction@hotel-beffroi.fr', '03 80 44 12 67', ['prospect', 'tourisme']),
+    C('Claire Dumont', 'GreenTech Paysage', 'claire@greentech-paysage.fr', '06 33 71 24 58', ['client']),
+    C('Antoine Perrin', 'Boulangerie Maison Perrin', 'maisonperrin@orange.fr', '06 51 09 33 72', ['prospect']),
+    C('Nadia Cherki', 'Institut Zenea', 'nadia@zenea.fr', '07 68 14 25 39', ['prospect', 'salon-2026']),
+    C('Thomas Blanchard', 'Transports Blanchard', 't.blanchard@transports-blanchard.fr', '04 72 18 90 45', ['prospect']),
+    C('Élodie Martin', 'La Ferme des Coteaux', 'contact@fermedescoteaux.fr', '06 22 87 41 03', ['client', 'agro']),
+    C('Pierre Gauthier', 'Gauthier Immobilier', 'p.gauthier@gauthier-immo.fr', '06 07 55 82 19', ['prospect']),
+    C('Isabelle Faure', 'Clinique vétérinaire des Lilas', 'i.faure@veto-lilas.fr', '01 48 33 60 27', ['prospect']),
+    C('Marc Ollivier', 'Brasserie du Canal', 'marc@brasserieducanal.fr', '06 95 12 74 86', ['client']),
+    C('Amélie Costa', 'Costa Architecture', 'amelie@costa-architecture.fr', '06 44 63 29 51', ['prospect', 'salon-2026'], { tva: 'FR32841776201' }),
+    C('David Nguyen', 'Nguyen Conseil RH', 'david@nguyen-rh.fr', '07 82 46 10 93', ['partenaire']),
+    C('Laure Bertin', 'Fromagerie Bertin & Fils', 'laure@fromagerie-bertin.fr', '03 84 25 71 40', ['prospect']),
+    C('Romain Delacroix', 'Studio Delacroix Photo', 'romain@delacroixphoto.fr', '06 71 38 52 04', ['partenaire']),
+    C('Cécile Morvan', 'Morvan Kinésithérapie', 'cecile.morvan@kine-morvan.fr', '02 98 47 15 82', ['prospect']),
+    C('Hugo Lambert', 'Lambert Plomberie', 'hugo.lambert@lambert-plomberie.fr', '06 18 92 47 35', ['client']),
+    C('Anne Rousselot', 'Librairie Le Marque-Page', 'contact@marquepage.fr', '05 56 81 33 94', ['prospect']),
+    C('Farid Meziane', 'Auto-école Horizon', 'farid@horizon-conduite.fr', '07 55 20 68 41', ['prospect']),
+  ];
+  base.contacts = contacts;
+  const byName = n => contacts.find(c => c.name === n);
+
+  const stages = base.settings.stages; // piste, contact, devis, nego
+  let deals = [], acts = [];
+  const D = (o) => {
+    const d = Object.assign({
+      id: uid(), title: '', contactId: null, value: 0, stageId: 'piste', prob: null,
+      status: 'open', lostReason: null, createdAt: ts(30), closedAt: null,
+      lastActivityAt: null, stageHistory: [], next: null,
+    }, o);
+    if (!d.stageHistory.length) {
+      const idx = stages.findIndex(s => s.id === d.stageId);
+      const createdDaysAgo = Math.round((Date.now() - new Date(d.createdAt)) / 864e5);
+      d.stageHistory = stages.slice(0, Math.max(1, idx + 1)).map((s, i) => ({ stageId: s.id, at: ts(Math.max(0, createdDaysAgo - i * 6)) }));
+    }
+    if (!d.lastActivityAt) d.lastActivityAt = d.createdAt;
+    deals.push(d);
+    return d;
+  };
+  const A = (deal, type, text, daysAgo, h = 11) => {
+    const a = { id: uid(), dealId: deal.id, contactId: deal.contactId, type, text, at: ts(daysAgo, h) };
+    acts.push(a);
+    if (type !== 'systeme' && a.at > deal.lastActivityAt) deal.lastActivityAt = a.at;
+    return a;
+  };
+
+  /* ---- affaires en cours ---- */
+  let d;
+  d = D({ title: 'Refonte du site vitrine', contactId: byName('Karim Bensaïd').id, value: 4800, stageId: 'devis', createdAt: ts(24), next: { kind: 'relance', label: 'devis envoyé le ' + fmtDay(day(-9)), date: day(-3) } });
+  A(d, 'appel', 'Premier échange : site actuel daté de 2015, perd des chantiers face aux concurrents mieux référencés.', 24);
+  A(d, 'rdv', 'RDV atelier : visite, 20 photos réalisables, veut un formulaire de demande de devis.', 16);
+  A(d, 'email', 'Devis envoyé : refonte 12 pages + galerie chantiers, 4 800 € HT.', 9);
+
+  d = D({ title: 'Identité visuelle complète', contactId: byName('Nadia Cherki').id, value: 3200, stageId: 'nego', createdAt: ts(31), next: { kind: 'appel', label: 'valider la remise 5 %', date: day(-1) } });
+  A(d, 'rdv', 'Rencontrée au salon des créateurs. Ouvre un second institut en septembre.', 31);
+  A(d, 'email', 'Proposition logo + charte + supports, 3 200 € HT.', 18);
+  A(d, 'appel', 'Trouve le prix un peu haut, demande un geste. Proposé -5 % si acompte 50 %.', 6);
+
+  d = D({ title: 'Site de réservation en ligne', contactId: byName('Julien Roux').id, value: 7500, stageId: 'devis', createdAt: ts(19), next: { kind: 'relance', label: '', date: day(-8) } });
+  A(d, 'appel', 'Perd des réservations au profit de Booking (17 % de commission). Veut la réservation en direct.', 19);
+  A(d, 'email', 'Devis envoyé : site + moteur de réservation + passerelle de paiement, 7 500 € HT.', 12);
+
+  d = D({ title: 'Boutique en ligne fromages', contactId: byName('Laure Bertin').id, value: 6200, stageId: 'contact', createdAt: ts(12), next: { kind: 'rdv', label: 'visio découverte', date: day(0) } });
+  A(d, 'appel', 'Recommandée par Élodie Martin. Vend déjà par téléphone à des restaurateurs, veut passer au web.', 12);
+
+  d = D({ title: 'Site vitrine + prise de RDV', contactId: byName('Cécile Morvan').id, value: 2400, stageId: 'contact', createdAt: ts(8), next: { kind: 'appel', label: 'proposer un créneau de RDV', date: day(0) } });
+  A(d, 'email', 'Formulaire de contact du site : « débordée par les appels, cherche la prise de RDV en ligne ».', 8);
+
+  d = D({ title: 'Refonte site + photos', contactId: byName('Antoine Perrin').id, value: 1900, stageId: 'piste', createdAt: ts(5), next: { kind: 'appel', label: 'premier appel de qualification', date: day(1) } });
+  A(d, 'note', 'A rempli le formulaire : « site fait par mon neveu, plus à jour depuis 2019 ».', 5);
+
+  d = D({ title: 'Audit SEO + refonte', contactId: byName('Pierre Gauthier').id, value: 5400, stageId: 'devis', createdAt: ts(15), next: { kind: 'relance', label: 'relance devis n°2', date: day(2) } });
+  A(d, 'appel', 'Ses annonces n’apparaissent plus en première page. Concurrent local très visible.', 15);
+  A(d, 'email', 'Devis audit + refonte + suivi 6 mois envoyé, 5 400 € HT.', 7);
+  A(d, 'email', 'Relance n°1 : proposé un appel de 15 min pour parcourir le devis.', 3);
+
+  d = D({ title: 'Application de suivi de chantier', contactId: byName('Amélie Costa').id, value: 12500, stageId: 'nego', createdAt: ts(43), next: { kind: 'rdv', label: 'présentation à l’associé', date: day(4) } });
+  A(d, 'rdv', 'Atelier de cadrage : suivi photo des chantiers pour les clients, accès par code.', 43);
+  A(d, 'email', 'Proposition détaillée envoyée : MVP en 6 semaines, 12 500 € HT.', 22);
+  A(d, 'appel', 'Retour positif. Reste à convaincre son associé sur le budget.', 10);
+
+  d = D({ title: 'Maintenance annuelle du site', contactId: byName('Marc Ollivier').id, value: 1400, stageId: 'contact', createdAt: ts(26) });
+  A(d, 'note', 'Client 2025. Contrat de maintenance à renouveler avant la fin du trimestre.', 26);
+  // volontairement sans prochaine action → compteur « sans action »
+
+  d = D({ title: 'Vidéo + landing page formation', contactId: byName('Farid Meziane').id, value: 2800, stageId: 'piste', createdAt: ts(38) });
+  A(d, 'appel', 'Intéressé pour promouvoir sa formation code accélérée. À recontacter « dans quelques semaines ».', 33);
+  // dormante : 33 jours sans activité, pas d'action planifiée
+
+  d = D({ title: 'Site multilingue clinique', contactId: byName('Isabelle Faure').id, value: 3600, stageId: 'contact', createdAt: ts(21), next: { kind: 'relance', label: '', date: day(9) } });
+  A(d, 'appel', 'Beaucoup de clientèle anglophone. Veut FR/EN et un blog conseils.', 21);
+  A(d, 'email', 'Envoyé 3 références de sites réalisés.', 17);
+
+  d = D({ title: 'Refonte catalogue en ligne', contactId: byName('Thomas Blanchard').id, value: 4100, stageId: 'piste', createdAt: ts(27) });
+  A(d, 'note', 'Vu au réseau d’entreprises. Catalogue PDF de 40 pages impossible à maintenir.', 27);
+  // dormante aussi (27 j)
+
+  /* ---- affaires gagnées (6 derniers mois, pour la courbe de CA) ---- */
+  const won = (title, name, value, closedDaysAgo, cycle = 35) => {
+    const d0 = D({
+      title, contactId: byName(name).id, value, stageId: 'nego', status: 'won',
+      createdAt: ts(closedDaysAgo + cycle), closedAt: ts(closedDaysAgo, 15),
+    });
+    d0.stageHistory = stages.map((s, i) => ({ stageId: s.id, at: ts(closedDaysAgo + cycle - i * Math.floor(cycle / 4)) }));
+    A(d0, 'rdv', 'Cadrage du besoin et périmètre validé.', closedDaysAgo + Math.floor(cycle * .7));
+    A(d0, 'email', 'Devis envoyé.', closedDaysAgo + Math.floor(cycle * .5));
+    A(d0, 'appel', 'Ajustements demandés puis accord de principe.', closedDaysAgo + Math.floor(cycle * .2));
+    return d0;
+  };
+  // toujours une signature dans le mois courant pour que la démo parle
+  won('Site vitrine cabinet', 'Sophie Vernet', 3900, Math.max(1, Math.min(6, new Date().getDate() - 2)), 28);
+  won('Identité + site paysagiste', 'Claire Dumont', 5600, 38, 41);
+  won('Boutique produits de la ferme', 'Élodie Martin', 6800, 67, 52);
+  won('Site + réservation brasserie', 'Marc Ollivier', 4300, 96, 33);
+  won('Site vitrine plomberie', 'Hugo Lambert', 2200, 124, 21);
+  won('Landing page recrutement', 'David Nguyen', 1600, 151, 18);
+
+  /* ---- affaires perdues (raisons variées) ---- */
+  const lost = (title, name, value, closedDaysAgo, reason, reachedIdx = 2) => {
+    const d0 = D({
+      title, contactId: byName(name).id, value, stageId: stages[reachedIdx].id, status: 'lost',
+      createdAt: ts(closedDaysAgo + 30), closedAt: ts(closedDaysAgo, 16), lostReason: reason,
+    });
+    d0.stageHistory = stages.slice(0, reachedIdx + 1).map((s, i) => ({ stageId: s.id, at: ts(closedDaysAgo + 30 - i * 8) }));
+    return d0;
+  };
+  lost('Refonte site librairie', 'Anne Rousselot', 2900, 22, 'Pas de décision', 2);
+  lost('Site événementiel', 'Romain Delacroix', 1800, 47, 'Pas de budget', 1);
+  lost('E-commerce menuiserie', 'Karim Bensaïd', 8200, 71, 'Prix', 3);
+  lost('Refonte complète', 'Farid Meziane', 3500, 88, 'Concurrent', 2);
+  lost('Mini-site salon', 'Nadia Cherki', 900, 104, 'Pas de décision', 1);
+
+  base.deals = deals;
+  base.activities = acts;
+  base.meta.lastBackupAt = ts(2, 18);
+  S = base;
+}
+
+/* ============================================================
+   25. DÉMARRAGE
+   ============================================================ */
+function init() {
+  S = loadState();
+  // Liens de démo partageables : ?demo=1 charge les données d'exemple (base vide
+  // uniquement), ?theme=dark|light force le thème, ?capture=palette ouvre Ctrl+K.
+  const params = new URLSearchParams(location.search);
+  if (params.get('demo') === '1' && !S.contacts.length && !S.deals.length) { seedDemo(); persist(); }
+  const th = params.get('theme');
+  if (th === 'dark' || th === 'light') { S.settings.theme = th; persist(); }
+  applyTheme();
+  $('#themeBtn').onclick = toggleTheme;
+  $('#searchBtn').onclick = () => openPalette();
+  $('#quickAddBtn').onclick = () => openQuickAdd();
+  $('#backupChip').onclick = exportBackup;
+  if (!location.hash) location.hash = '#/aujourdhui';
+  render();
+  if (params.get('capture') === 'palette') { openPalette(); const q = params.get('q'); if (q) { const i = $('#palInput'); i.value = q; i.dispatchEvent(new Event('input')); } }
+}
+init();
+</script>
+</body>
+</html>
